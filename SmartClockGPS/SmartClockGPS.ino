@@ -1,14 +1,25 @@
+/*
+ * SmartClock using GPS to synchronize time with an atomic UTC timestamp
+ * This project uses a bluetooth GPS module together with an HC-05 bluetooth module
+ * to stream the GPS data over serial to the Arduino.
+ * 
+ * Licensed under GNU General Public License
+*/
+
 #include <SoftwareSerial.h>
 #include <LiquidCrystal.h>
+
 int rs = 11;
 int en = 10;
 // initialize the display library with the numbers of the interface pins
 LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
+
+// initialize the bluetooth serial data from HC-05
 SoftwareSerial BTSerial(13, 12); // RX | TX
 
 
 String inputString = "";         // a string to hold incoming data
-String GPSCommandString="$GPRMC";
+String GPSCommandString = "$GPRMC";
 String valueArray[13];
 int utc = 2;
 
