@@ -72,19 +72,18 @@ void elaborateValues(String myString){
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
   int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
 
-  //TODO: finish changing variables names here!
   String firstValue = myString.substring(0,idxFirstComma);
   String secondValue = myString.substring(idxFirstComma+1, idxSecondComma);
   String thirdValue = myString.substring(idxSecondComma+1, idxThirdComma);
-  String fourthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String fifthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String sixthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String seventhValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String eigthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String ninthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String tenthValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String eleventhValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String twelfthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String fourthValue = myString.substring(idxThirdComma+1, idxFourthComma);
+  String fifthValue = myString.substring(idxFourthComma+1, idxFifthComma);
+  String sixthValue = myString.substring(idxFifthComma+1, idxSixthComma);
+  String seventhValue = myString.substring(idxSixthComma+1, idxSeventhComma);
+  String eigthValue = myString.substring(idxSeventhComma+1, idxEigthComma);
+  String ninthValue = myString.substring(idxEigthComma+1, idxNinthComma);
+  String tenthValue = myString.substring(idxNinthComma+1, idxTenthComma);
+  String eleventhValue = myString.substring(idxTenthComma+1, idxEleventhComma);
+  String twelfthValue = myString.substring(idxEleventhComma+1, idxTwelfthComma);
 
   
   hours=((secondValue.substring(0,2)).toInt())+utc;
