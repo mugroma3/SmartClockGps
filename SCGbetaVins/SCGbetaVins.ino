@@ -59,7 +59,7 @@ void elaborateValues(String myString){
   
   String hourString,minuteString,secondString;
   
-  //The GPS Unit we are testing with uses NMEA 2.3, so we have eleven commas
+  //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
   int idxFirstComma = myString.indexOf(',');
   int idxSecondComma = myString.indexOf(',', idxFirstComma+1);
   int idxThirdComma = myString.indexOf(',', idxSecondComma+1);
@@ -72,31 +72,36 @@ void elaborateValues(String myString){
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
   int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
 
-  String firstValue = myString.substring(0,idxFirstComma);
-  String secondValue = myString.substring(idxFirstComma+1, idxSecondComma);
-  String thirdValue = myString.substring(idxSecondComma+1, idxThirdComma);
-  String fourthValue = myString.substring(idxThirdComma+1, idxFourthComma);
-  String fifthValue = myString.substring(idxFourthComma+1, idxFifthComma);
-  String sixthValue = myString.substring(idxFifthComma+1, idxSixthComma);
-  String seventhValue = myString.substring(idxSixthComma+1, idxSeventhComma);
-  String eigthValue = myString.substring(idxSeventhComma+1, idxEigthComma);
-  String ninthValue = myString.substring(idxEigthComma+1, idxNinthComma);
-  String tenthValue = myString.substring(idxNinthComma+1, idxTenthComma);
-  String eleventhValue = myString.substring(idxTenthComma+1, idxEleventhComma);
-  String twelfthValue = myString.substring(idxEleventhComma+1, idxTwelfthComma);
-
+  valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
+  valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
+  valueArray[2] = myString.substring(idxSecondComma+1, idxThirdComma);          //Status
+  valueArray[3] = myString.substring(idxThirdComma+1, idxFourthComma);          //Latitude
+  valueArray[4] = myString.substring(idxFourthComma+1, idxFifthComma);          //N
+  valueArray[5] = myString.substring(idxFifthComma+1, idxSixthComma);           //Longitude
+  valueArray[6] = myString.substring(idxSixthComma+1, idxSeventhComma);         //E
+  valueArray[7] = myString.substring(idxSeventhComma+1, idxEigthComma);         //Speed
+  valueArray[8] = myString.substring(idxEigthComma+1, idxNinthComma);           //Track angle
+  valueArray[9] = myString.substring(idxNinthComma+1, idxTenthComma);           //Date
+  valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
+  valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
+  valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
   
-  hours=((secondValue.substring(0,2)).toInt())+utc;
-  minutes=(secondValue.substring(2,4)).toInt();
-  seconds=(secondValue.substring(4,6)).toInt();
+  hours=((valueArray[1].substring(0,2)).toInt())+utc;
+ // minutes=(valueArray[1].substring(2,4)).toInt();
+ // seconds=(valueArray[1].substring(4,6)).toInt();
   hourString+=hours;
-  minuteString=secondValue.substring(2,4);
-  secondString=secondValue.substring(4,6);
-  String timeString=hourString+":"+minuteString+":"+secondString;
-  Serial.println(secondValue);
-  Serial.println(hourString);
-  Serial.println("\n");
-  lcd.setCursor(0, 0);
+  minuteString=valueArray[1].substring(2,4);
+  secondString=valueArray[1].substring(4,6);
+  
+  String timeString = hourString+":"+minuteString+":"+secondString;
+  String dateString = valueArray[9].substring(0,2) + "/" + valueArray[9].substring(2,4) + "/20" + valueArray[9].substring(4,6);
+  
+  //Serial.println(valueArray[1]);
+  //Serial.println(hourString);
+  //Serial.println("\n");
+  lcd.setCursor(0,0);
+  lcd.print(dateString);
+  lcd.setCursor(1, 0);
   lcd.print(hourString);
 }
 
