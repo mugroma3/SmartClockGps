@@ -4,8 +4,9 @@ int rs = 11;
 int en = 10;
 // initialize the display library with the numbers of the interface pins
 LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
-
 SoftwareSerial BTSerial(13, 12); // RX | TX
+
+
 String inputString = "";         // a string to hold incoming data
 String GPSCommandString="$GPRMC";
 String valueArray[13];
@@ -29,11 +30,63 @@ void loop() {
 }
 
 void elaborateValues(String myString){
-  int hours,minutes,seconds;
+/*
+ *
+ * RMC - NMEA has its own version of essential gps pvt (position, velocity, time) data. It is called RMC, The Recommended Minimum, which will look similar to:
+ * $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
+ * Where:
+     RMC          Recommended Minimum sentence C
+     123519       Fix taken at 12:35:19 UTC
+     A            Status A=active or V=Void.
+     4807.038,N   Latitude 48 deg 07.038' N
+     01131.000,E  Longitude 11 deg 31.000' E
+     022.4        Speed over the ground in knots
+     084.4        Track angle in degrees True
+     230394       Date - 23rd of March 1994
+     003.1,W      Magnetic Variation
+     *6A          The checksum data, always begins with *
+ * Note that, as of the 2.3 release of NMEA, there is a new field in the RMC sentence at the end just prior to the checksum.
+ * This field is a mode indicator to several sentences, which is used to indicate the kind of fix the receiver currently has. 
+ * This indication is part of the signal integrity information needed by the FAA. 
+ * The value can be A=autonomous, D=differential, E=Estimated, N=not valid, S=Simulator. 
+ * Sometimes there can be a null value as well. 
+ * Only the A and D values will correspond to an Active and reliable Sentence. 
+ * This mode character has been added to the RMC, RMB, VTG, and GLL, sentences and optionally some others including the BWC and XTE sentences. 
+ * INFORMATION FROM http://www.gpsinformation.org/dale/nmea.htm
+*/
+  
+  int hours,minutes,seconds,day,month,year;
+  
   String hourString,minuteString,secondString;
-  int commaIndex = myString.indexOf(',');
-  int secondCommaIndex = myString.indexOf(',', commaIndex+1);
-  String secondValue = myString.substring(commaIndex+1, secondCommaIndex);
+  
+  //The GPS Unit we are testing with uses NMEA 2.3, so we have eleven commas
+  int idxFirstComma = myString.indexOf(',');
+  int idxSecondComma = myString.indexOf(',', idxFirstComma+1);
+  int idxThirdComma = myString.indexOf(',', idxSecondComma+1);
+  int idxFourthComma = myString.indexOf(',', idxThirdComma+1);
+  int idxFifthComma = myString.indexOf(',', idxFourthComma+1);
+  int idxSixthComma = myString.indexOf(',', idxFifthComma+1);
+  int idxSeventhComma = myString.indexOf(',', idxSixthComma+1);
+  int idxEigthComma = myString.indexOf(',', idxSeventhComma+1);
+  int idxNinthComma = myString.indexOf(',', idxEigthComma+1);
+  int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
+  int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
+
+  //TODO: finish changing variables names here!
+  String firstValue = myString.substring(0,idxFirstComma);
+  String secondValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String thirdValue = myString.substring(idxSecondComma+1, idxThirdComma);
+  String fourthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String fifthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String sixthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String seventhValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String eigthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String ninthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String tenthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String eleventhValue = myString.substring(idxFirstComma+1, idxSecondComma);
+  String twelfthValue = myString.substring(idxFirstComma+1, idxSecondComma);
+
+  
   hours=((secondValue.substring(0,2)).toInt())+utc;
   minutes=(secondValue.substring(2,4)).toInt();
   seconds=(secondValue.substring(4,6)).toInt();
