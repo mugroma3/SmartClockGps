@@ -36,7 +36,7 @@ SoftwareSerial BTSerial(13, 12); // RX | TX
 String inputString = "";                // a string to hold incoming data
 String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
 String valueArray[13];                  // this array will gather the different values from the GPS data string
-int utc = 2;                            // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
+int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 
 String months[5][13] = {{"EN","January","February","March","April","May","June","July","August","September","October","November","December"},
 {"IT","Gennaio", "Febbraio", "Marzo", "Aprile", "può", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "December"},
@@ -99,6 +99,7 @@ boolean elaborateValues(String myString){
   String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
   
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
+  //TODO: turn this into a for loop
   int idxFirstComma = myString.indexOf(',');
   int idxSecondComma = myString.indexOf(',', idxFirstComma+1);
   int idxThirdComma = myString.indexOf(',', idxSecondComma+1);
@@ -109,8 +110,8 @@ boolean elaborateValues(String myString){
   int idxEighthComma = myString.indexOf(',', idxSeventhComma+1);
   int idxNinthComma = myString.indexOf(',', idxEighthComma+1);
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
-  int idxEleventhComma = myString.indexOf(',', idxEleventhComma+1);
-  int idxTwelfthComma = myString.indexOf(',', idxTenthComma+1);
+  int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
+  int idxTwelfthComma = myString.indexOf(',', idxEleventhComma+1);
 
   valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
   valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
@@ -126,7 +127,7 @@ boolean elaborateValues(String myString){
   valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
   valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
   
-  hours=((valueArray[1].substring(0,2)).toInt())+utc;
+  hours = valueArray[1].substring(0,2).toInt() + offsetUTC;
   //minutes=(valueArray[1].substring(2,4)).toInt();
   //seconds=(valueArray[1].substring(4,6)).toInt();
   //day = valueArray[9].substring(0,2).toInt();
