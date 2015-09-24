@@ -41,7 +41,7 @@ String months[5][13] = {{"EN","January","February","March","April","May","June",
 {"FR","Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"},
 {"DE","Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}};
 
-int currentLocale = IT;
+int currentLocale = IT; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
 
 
 void setup() {
