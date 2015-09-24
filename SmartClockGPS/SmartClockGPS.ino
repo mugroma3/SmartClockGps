@@ -16,6 +16,7 @@
 
 #include <SoftwareSerial.h>
 #include <LiquidCrystal.h>
+#include "Timer.h"                     //http://github.com/JChristensen/Timer
 
 #define ENG 0
 #define ITA 1
@@ -32,24 +33,40 @@ LiquidCrystal lcd(RS, EN, 5, 4, 3, 2);
 // initialize the bluetooth serial data from HC-05
 SoftwareSerial BTSerial(13, 12); // RX | TX
 
-// define some global variables
-String inputString = "";                // a string to hold incoming data
-String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
-
+//define user definable globals, can change value, held in RAM memory
 int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
+int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
+boolean useLangStrings = false;
 
+// define global variables that can change value, held in RAM memory
+String inputString = "";                // a string to hold incoming data
+
+// define static variables, will never change, will be held in Flash memory instead of RAM
+static const String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
 
 static const String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
 {"IT","Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Sett", "Ott", "Nov", "Dic"},
 {"ES","Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"},
-{"FR","Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"},
-{"DE","Jan", "Febr", "März", "April", "Mai", "Juni", "Juli", "Aug", "Sept", "Okt", "Nov", "Dez"}};
+{"FR","Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aout", "Sept", "Oct", "Nov", "Dec"},
+{"DE","Jan", "Febr", "Marz", "April", "Mai", "Juni", "Juli", "Aug", "Sept", "Okt", "Nov", "Dez"}};
+
+static const String settingsMenu[5][3] = {{"UTC OFFSET","LANGUAGE","DATE VIEW"},
+{"OFFSET UTC","LINGUA","VISTA DATA"},
+{"OFFSET UTC","IDIOMA","VISTA FECHA"},
+{"OFFSET UTC","LANGUE","VUE DATE"},
+{"OFFSET UTC","SPRACHE","ANZEIGEN DATUM"}};
+
+static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
+
+static const String languageValues[5] = {"English","Italiano","Espanol","Francais","Deutch"};
+
+static const String dateViewValues[5][2] = {{"String","Number"},
+{"Stringa","Numero"},
+{"Cadena","Numero"},
+{"Chaine","Nombre"},
+{"String","Zahl"}};
 
 
-String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
-
-int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
-boolean useLangStrings = false;
 
 void setup() {
   // put your setup code here, to run once:
