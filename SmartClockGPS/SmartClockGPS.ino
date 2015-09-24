@@ -44,7 +44,7 @@ boolean useLangStrings = false;
 
 // define global variables that can change value, held in RAM memory
 String inputString;                // a string to hold incoming data
-int currentTime;
+unsigned long currentTime;
 int tickEvent;
 String timeString;
 String dateString;
@@ -218,8 +218,10 @@ void updateClock()
 {
   currentTime = millis();
   int seconds = round(currentTime / 1000);
-  int minutes = round(seconds / 60);
-  int hours = round(minutes / 60);
+  if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
+  int minutes = round(currentTime / 1000 / 60);
+  if(minutes>59){ minutes = minutes - (60 * (minutes / 60)); }
+  int hours = round(currentTime / 1000 / 60 / 60);
   timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
   dateString = "dd / mm / yyyy";
   lcd.setCursor(0,0);
