@@ -33,13 +33,21 @@ LiquidCrystal lcd(RS, EN, 5, 4, 3, 2);
 // initialize the bluetooth serial data from HC-05
 SoftwareSerial BTSerial(13, 12); // RX | TX
 
+//instantiate the timer object
+Timer t;
+
+
 //define user definable globals, can change value, held in RAM memory
 int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
 boolean useLangStrings = false;
 
 // define global variables that can change value, held in RAM memory
-String inputString = "";                // a string to hold incoming data
+String inputString;                // a string to hold incoming data
+int currentTime;
+int tickEvent;
+String timeString;
+String dateString;
 
 // define static variables, will never change, will be held in Flash memory instead of RAM
 static const String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
@@ -67,25 +75,37 @@ static const String dateViewValues[5][2] = {{"String","Number"},
 {"String","Zahl"}};
 
 
-
 void setup() {
   // put your setup code here, to run once:
-   BTSerial.begin(38400);
-   Serial.begin(38400);
-   lcd.begin(16, 2);
-   inputString.reserve(300);
-   Serial.println("We are ready to begin!");
+  BTSerial.begin(38400);
+  Serial.begin(38400);
+  lcd.begin(16, 2);
+  inputString.reserve(300);
+  tickEvent = t.every(1000, updateClock);
+
+  currentTime = millis();
+  int seconds = round(currentTime / 1000);
+  int minutes = round(seconds / 60);
+  int hours = round(minutes / 60);
+  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
+  dateString = "dd / mm / yyyy";
+  lcd.setCursor(0,0);
+  lcd.print(timeString);
+  lcd.setCursor(0,1);
+  lcd.print(dateString);
+
 }
 
 void loop() {
- if(BTSerial.available()>0){
+  t.update();
+  /*
+  if(BTSerial.available()>0){
     inputString = BTSerial.readStringUntil('\n');
-    //Serial.println(inputString);
     if(inputString.startsWith(GPSCommandString)){
-      //Serial.println(inputString);
       boolean result = elaborateValues(inputString);
     }
- }
+  }
+  */
 }
 
 
@@ -193,4 +213,19 @@ boolean elaborateValues(String myString){
   
   return true; //perhaps if fix not valid, or signal integrity not A or D, return false?
 }
+
+void updateClock()
+{
+  currentTime = millis();
+  int seconds = round(currentTime / 1000);
+  int minutes = round(seconds / 60);
+  int hours = round(minutes / 60);
+  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
+  dateString = "dd / mm / yyyy";
+  lcd.setCursor(0,0);
+  lcd.print(timeString);
+  lcd.setCursor(0,1);
+  lcd.print(dateString);
+}
+
 
