@@ -33,10 +33,10 @@ LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
 SoftwareSerial BTSerial(13, 12); // RX | TX
 
 // define some global variables
-String inputString = "";         // a string to hold incoming data
-String GPSCommandString = "$GPRMC";
-String valueArray[13];
-int utc = 2;
+String inputString = "";                // a string to hold incoming data
+String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
+String valueArray[13];                  // this array will gather the different values from the GPS data string
+int utc = 2;                            // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 
 String months[5][13] = {{"EN","January","February","March","April","May","June","July","August","September","October","November","December"},
 {"IT","Gennaio", "Febbraio", "Marzo", "Aprile", "può", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "December"},
@@ -59,12 +59,13 @@ void loop() {
  if(BTSerial.available()>0){
     inputString = BTSerial.readStringUntil('\n');
     if(inputString.startsWith(GPSCommandString)){
-      elaborateValues(inputString);
+      boolean result = elaborateValues(inputString);
     }
  }
 }
 
-void elaborateValues(String myString){
+
+
 /*
  *
  * RMC - NMEA has its own version of essential gps pvt (position, velocity, time) data. It is called RMC, The Recommended Minimum, which will look similar to:
@@ -89,6 +90,9 @@ void elaborateValues(String myString){
  * This mode character has been added to the RMC, RMB, VTG, and GLL, sentences and optionally some others including the BWC and XTE sentences. 
  * INFORMATION FROM http://www.gpsinformation.org/dale/nmea.htm
 */
+//TODO: double check whether time / date data is correct even when Fix Status = V (void)
+//TODO: double check also whether time / date data is valid when signal integrity != A and !=D
+boolean elaborateValues(String myString){
   
   int hours,minutes,seconds,day,month,year;
   
@@ -115,8 +119,8 @@ void elaborateValues(String myString){
   valueArray[4] = myString.substring(idxFourthComma+1, idxFifthComma);          //N
   valueArray[5] = myString.substring(idxFifthComma+1, idxSixthComma);           //Longitude
   valueArray[6] = myString.substring(idxSixthComma+1, idxSeventhComma);         //E
-  valueArray[7] = myString.substring(idxSeventhComma+1, idxEighthComma);         //Speed
-  valueArray[8] = myString.substring(idxEighthComma+1, idxNinthComma);           //Track angle
+  valueArray[7] = myString.substring(idxSeventhComma+1, idxEighthComma);        //Speed
+  valueArray[8] = myString.substring(idxEighthComma+1, idxNinthComma);          //Track angle
   valueArray[9] = myString.substring(idxNinthComma+1, idxTenthComma);           //Date
   valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
   valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
