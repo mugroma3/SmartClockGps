@@ -21,13 +21,13 @@
 #define ITA 1
 #define ESP 2
 #define FRA 3
-//#define DEU 4
+#define DEU 4
 
 
 // initialize the display library with the numbers of the interface pins
-int rs = 11;
-int en = 10;
-LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
+int RS = 11; //Register Select
+int EN = 10; //Enable
+LiquidCrystal lcd(RS, EN, 5, 4, 3, 2);
 
 // initialize the bluetooth serial data from HC-05
 SoftwareSerial BTSerial(13, 12); // RX | TX
