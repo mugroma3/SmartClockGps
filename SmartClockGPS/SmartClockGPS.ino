@@ -35,7 +35,6 @@ SoftwareSerial BTSerial(13, 12); // RX | TX
 // define some global variables
 String inputString = "";                // a string to hold incoming data
 String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
-String valueArray[13];                  // this array will gather the different values from the GPS data string
 int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 
 String months[5][13] = {{"EN","January","February","March","April","May","June","July","August","September","October","November","December"},
@@ -43,6 +42,8 @@ String months[5][13] = {{"EN","January","February","March","April","May","June",
 {"ES","Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"},
 {"FR","Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"},
 {"DE","Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}};
+
+String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
 
 int currentLocale = IT; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
 
@@ -94,8 +95,7 @@ void loop() {
 //TODO: double check also whether time / date data is valid when signal integrity != A and !=D
 boolean elaborateValues(String myString){
   
-  int hours,minutes,seconds,day,month,year;
-  
+  int hours,minutes,seconds,day,month,year;  
   String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
   
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
@@ -112,7 +112,16 @@ boolean elaborateValues(String myString){
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
   int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
   int idxTwelfthComma = myString.indexOf(',', idxEleventhComma+1);
+/*
+  int idxComma[12];
+  for(int p=0;p<12;p++){
+    if(p==0){ idxComma[p] = myString.indexOf(','); }
+    else{ idxComma[p] = myString.indexOf(',', idxComma[p-1]+1); }
+  }
+*/
 
+
+  String valueArray[13];
   valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
   valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
   valueArray[2] = myString.substring(idxSecondComma+1, idxThirdComma);          //Status
@@ -126,6 +135,19 @@ boolean elaborateValues(String myString){
   valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
   valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
   valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
+/*
+  for(q=0;q<13;q++){
+    if(q==0){ 
+      valueArray[q] = myString.substring(0,idxComma[q]); 
+    }
+    else if(q>0 && q <12){
+      valueArray[q] = myString.substring(idxComma[q-1]+1,idxComma[q]); 
+    }
+    else if(q==12){
+      valueArray[q] = myString.substring(idxComma[q-1]+1);
+    }
+  }
+*/
   
   hours = valueArray[1].substring(0,2).toInt() + offsetUTC;
   //minutes=(valueArray[1].substring(2,4)).toInt();
@@ -134,9 +156,9 @@ boolean elaborateValues(String myString){
   month = valueArray[9].substring(2,4).toInt();
   //year = valueArray[9].substring(4,6).toInt();
   
-  hourString+=hours;
-  minuteString=valueArray[1].substring(2,4);
-  secondString=valueArray[1].substring(4,6);  
+  hourString = String(hours);
+  minuteString = valueArray[1].substring(2,4);
+  secondString = valueArray[1].substring(4,6);  
   timeString = hourString+":"+minuteString+":"+secondString;
 
   dayString = valueArray[9].substring(0,2);
