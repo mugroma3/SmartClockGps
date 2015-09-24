@@ -156,5 +156,7 @@ boolean elaborateValues(String myString){
   lcd.print(dateString);
   lcd.setCursor(1, 0);
   lcd.print(hourString);
+
+  return true; //perhaps if fix not valid, or signal integrity not A or D, return false?
 }
 
