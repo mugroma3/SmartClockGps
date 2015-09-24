@@ -1,27 +1,48 @@
 /*
+ * GPS-SmartClock ™
+ * 
  * SmartClock using GPS to synchronize time with an atomic UTC timestamp
  * This project uses a bluetooth GPS module together with an HC-05 bluetooth module
  * to stream the GPS data over serial to the Arduino.
  * 
  * Licensed under GNU General Public License
+ * 
+ * by Vincenzo d'Orso e John D'Orazio
 */
+
 
 #include <SoftwareSerial.h>
 #include <LiquidCrystal.h>
 
+#define EN 0
+#define IT 1
+#define ES 2
+#define FR 3
+#define DE 4
+
+
+// initialize the display library with the numbers of the interface pins
 int rs = 11;
 int en = 10;
-// initialize the display library with the numbers of the interface pins
 LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
 
 // initialize the bluetooth serial data from HC-05
 SoftwareSerial BTSerial(13, 12); // RX | TX
 
-
+// define some global variables
 String inputString = "";         // a string to hold incoming data
 String GPSCommandString = "$GPRMC";
 String valueArray[13];
 int utc = 2;
+
+String months[5][13] = {{"EN","January","February","March","April","May","June","July","August","September","October","November","December"},
+{"IT","Gennaio", "Febbraio", "Marzo", "Aprile", "può", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "December"},
+{"ES","Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"},
+{"FR","Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"},
+{"DE","Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}};
+
+int currentLocale = IT;
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -78,10 +99,11 @@ void elaborateValues(String myString){
   int idxFifthComma = myString.indexOf(',', idxFourthComma+1);
   int idxSixthComma = myString.indexOf(',', idxFifthComma+1);
   int idxSeventhComma = myString.indexOf(',', idxSixthComma+1);
-  int idxEigthComma = myString.indexOf(',', idxSeventhComma+1);
-  int idxNinthComma = myString.indexOf(',', idxEigthComma+1);
+  int idxEighthComma = myString.indexOf(',', idxSeventhComma+1);
+  int idxNinthComma = myString.indexOf(',', idxEighthComma+1);
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
-  int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
+  int idxEleventhComma = myString.indexOf(',', idxEleventhComma+1);
+  int idxTwelfthComma = myString.indexOf(',', idxTenthComma+1);
 
   valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
   valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
@@ -90,8 +112,8 @@ void elaborateValues(String myString){
   valueArray[4] = myString.substring(idxFourthComma+1, idxFifthComma);          //N
   valueArray[5] = myString.substring(idxFifthComma+1, idxSixthComma);           //Longitude
   valueArray[6] = myString.substring(idxSixthComma+1, idxSeventhComma);         //E
-  valueArray[7] = myString.substring(idxSeventhComma+1, idxEigthComma);         //Speed
-  valueArray[8] = myString.substring(idxEigthComma+1, idxNinthComma);           //Track angle
+  valueArray[7] = myString.substring(idxSeventhComma+1, idxEighthComma);         //Speed
+  valueArray[8] = myString.substring(idxEighthComma+1, idxNinthComma);           //Track angle
   valueArray[9] = myString.substring(idxNinthComma+1, idxTenthComma);           //Date
   valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
   valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
@@ -105,7 +127,7 @@ void elaborateValues(String myString){
   secondString=valueArray[1].substring(4,6);
   
   String timeString = hourString+":"+minuteString+":"+secondString;
-  String dateString = valueArray[9].substring(0,2) + "/" + valueArray[9].substring(2,4) + "/20" + valueArray[9].substring(4,6);
+  String dateString = valueArray[9].substring(0,2) + " " + months[currentLocale][valueArray[9].substring(2,4).toInt()] + " 20" + valueArray[9].substring(4,6);
   
   //Serial.println(valueArray[1]);
   //Serial.println(hourString);
