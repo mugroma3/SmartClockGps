@@ -8,6 +8,9 @@
  * Licensed under GNU General Public License
  * 
  * by Vincenzo d'Orso e John D'Orazio
+ * 
+ * A project of the Microcontrollers Users Group - Roma Tre University
+ * http://muglab.uniroma3.it/
 */
 
 
