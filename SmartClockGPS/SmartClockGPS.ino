@@ -17,11 +17,11 @@
 #include <SoftwareSerial.h>
 #include <LiquidCrystal.h>
 
-#define EN 0
-#define IT 1
-#define ES 2
-#define FR 3
-#define DE 4
+#define ENG 0
+#define ITA 1
+#define ESP 2
+#define FRA 3
+#define DEU 4
 
 
 // initialize the display library with the numbers of the interface pins
@@ -45,7 +45,7 @@ String months[5][13] = {{"EN","January","February","March","April","May","June",
 
 String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
 
-int currentLocale = IT; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
+int currentLocale = ITA; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
 
 
 void setup() {
@@ -165,7 +165,7 @@ boolean elaborateValues(String myString){
   monthString = months[currentLocale][month];
   yearString = valueArray[9].substring(4,6);
   
-  if(currentLocale == EN){
+  if(currentLocale == ENG){
     dateString = monthString + " " + dayString + ", 20" + yearString;
   }
   else{
