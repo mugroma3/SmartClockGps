@@ -89,7 +89,7 @@ void elaborateValues(String myString){
   
   int hours,minutes,seconds,day,month,year;
   
-  String hourString,minuteString,secondString;
+  String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
   
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
   int idxFirstComma = myString.indexOf(',');
@@ -120,14 +120,27 @@ void elaborateValues(String myString){
   valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
   
   hours=((valueArray[1].substring(0,2)).toInt())+utc;
- // minutes=(valueArray[1].substring(2,4)).toInt();
- // seconds=(valueArray[1].substring(4,6)).toInt();
+  //minutes=(valueArray[1].substring(2,4)).toInt();
+  //seconds=(valueArray[1].substring(4,6)).toInt();
+  //day = valueArray[9].substring(0,2).toInt();
+  month = valueArray[9].substring(2,4).toInt();
+  //year = valueArray[9].substring(4,6).toInt();
+  
   hourString+=hours;
   minuteString=valueArray[1].substring(2,4);
-  secondString=valueArray[1].substring(4,6);
+  secondString=valueArray[1].substring(4,6);  
+  timeString = hourString+":"+minuteString+":"+secondString;
+
+  dayString = valueArray[9].substring(0,2);
+  monthString = months[currentLocale][month];
+  yearString = valueArray[9].substring(4,6);
   
-  String timeString = hourString+":"+minuteString+":"+secondString;
-  String dateString = valueArray[9].substring(0,2) + " " + months[currentLocale][valueArray[9].substring(2,4).toInt()] + " 20" + valueArray[9].substring(4,6);
+  if(currentLocale == EN){
+    dateString = monthString + " " + dayString + ", 20" + yearString;
+  }
+  else{
+    dateString = dayString + " " + monthString + " 20" + yearString;
+  }
   
   //Serial.println(valueArray[1]);
   //Serial.println(hourString);
