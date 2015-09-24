@@ -21,7 +21,7 @@
 #define ITA 1
 #define ESP 2
 #define FRA 3
-#define DEU 4
+//#define DEU 4
 
 
 // initialize the display library with the numbers of the interface pins
@@ -35,17 +35,20 @@ SoftwareSerial BTSerial(13, 12); // RX | TX
 // define some global variables
 String inputString = "";                // a string to hold incoming data
 String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
+
 int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 
-String months[5][13] = {{"EN","January","February","March","April","May","June","July","August","September","October","November","December"},
-{"IT","Gennaio", "Febbraio", "Marzo", "Aprile", "può", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "December"},
-{"ES","Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"},
-{"FR","Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"},
-{"DE","Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}};
+/*
+String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
+{"IT","Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Sett", "Ott", "Nov", "Dic"},
+{"ES","Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"},
+{"FR","Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"},
+{"DE","Jan", "Febr", "März", "April", "Mai", "Juni", "Juli", "Aug", "Sept", "Okt", "Nov", "Dez"}};
+*/
 
 String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
 
-int currentLocale = ITA; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
+int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
 
 
 void setup() {
@@ -54,12 +57,15 @@ void setup() {
    Serial.begin(38400);
    lcd.begin(16, 2);
    inputString.reserve(300);
+   Serial.println("We are ready to begin!");
 }
 
 void loop() {
  if(BTSerial.available()>0){
     inputString = BTSerial.readStringUntil('\n');
+    //Serial.println(inputString);
     if(inputString.startsWith(GPSCommandString)){
+      //Serial.println(inputString);
       boolean result = elaborateValues(inputString);
     }
  }
@@ -93,11 +99,13 @@ void loop() {
 */
 //TODO: double check whether time / date data is correct even when Fix Status = V (void)
 //TODO: double check also whether time / date data is valid when signal integrity != A and !=D
+
 boolean elaborateValues(String myString){
   
   int hours,minutes,seconds,day,month,year;  
   String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
-  
+
+  Serial.println(myString);
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
   //TODO: turn this into a for loop
   int idxFirstComma = myString.indexOf(',');
@@ -112,6 +120,7 @@ boolean elaborateValues(String myString){
   int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
   int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
   int idxTwelfthComma = myString.indexOf(',', idxEleventhComma+1);
+
 /*
   int idxComma[12];
   for(int p=0;p<12;p++){
@@ -121,20 +130,13 @@ boolean elaborateValues(String myString){
 */
 
 
-  String valueArray[13];
-  valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
-  valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
-  valueArray[2] = myString.substring(idxSecondComma+1, idxThirdComma);          //Status
-  valueArray[3] = myString.substring(idxThirdComma+1, idxFourthComma);          //Latitude
-  valueArray[4] = myString.substring(idxFourthComma+1, idxFifthComma);          //N
-  valueArray[5] = myString.substring(idxFifthComma+1, idxSixthComma);           //Longitude
-  valueArray[6] = myString.substring(idxSixthComma+1, idxSeventhComma);         //E
-  valueArray[7] = myString.substring(idxSeventhComma+1, idxEighthComma);        //Speed
-  valueArray[8] = myString.substring(idxEighthComma+1, idxNinthComma);          //Track angle
-  valueArray[9] = myString.substring(idxNinthComma+1, idxTenthComma);           //Date
-  valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
-  valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
-  valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
+  String valueArray[4];  
+  valueArray[0] = myString.substring(idxFirstComma+1, idxSecondComma); //TIME
+  valueArray[1] = myString.substring(idxNinthComma+1, idxTenthComma);  //DATE
+  valueArray[2] = myString.substring(idxThirdComma+1, idxFourthComma); //LATITUDE
+  valueArray[3] = myString.substring(idxFifthComma+1, idxSixthComma);  //LONGITUDE
+  
+
 /*
   for(q=0;q<13;q++){
     if(q==0){ 
@@ -148,38 +150,38 @@ boolean elaborateValues(String myString){
     }
   }
 */
-  
-  hours = valueArray[1].substring(0,2).toInt() + offsetUTC;
+
+  hours = valueArray[0].substring(0,2).toInt() + offsetUTC;
   //minutes=(valueArray[1].substring(2,4)).toInt();
   //seconds=(valueArray[1].substring(4,6)).toInt();
   //day = valueArray[9].substring(0,2).toInt();
-  month = valueArray[9].substring(2,4).toInt();
+  month = valueArray[1].substring(2,4).toInt();
   //year = valueArray[9].substring(4,6).toInt();
   
   hourString = String(hours);
-  minuteString = valueArray[1].substring(2,4);
-  secondString = valueArray[1].substring(4,6);  
+  Serial.println(hourString);
+
+  minuteString = valueArray[0].substring(2,4);
+  secondString = valueArray[0].substring(4,6);  
   timeString = hourString+":"+minuteString+":"+secondString;
 
-  dayString = valueArray[9].substring(0,2);
-  monthString = months[currentLocale][month];
-  yearString = valueArray[9].substring(4,6);
+  dayString = valueArray[1].substring(0,2);
+  //monthString = months[currentLocale][month];
+  monthString = valueArray[1].substring(2,4);
+  yearString = valueArray[1].substring(4,6);
   
   if(currentLocale == ENG){
-    dateString = monthString + " " + dayString + ", 20" + yearString;
+    dateString = monthString + "/" + dayString + "/20" + yearString;
   }
   else{
-    dateString = dayString + " " + monthString + " 20" + yearString;
+    dateString = dayString + "/" + monthString + "/20" + yearString;
   }
   
-  //Serial.println(valueArray[1]);
-  //Serial.println(hourString);
-  //Serial.println("\n");
   lcd.setCursor(0,0);
   lcd.print(dateString);
-  lcd.setCursor(1, 0);
-  lcd.print(hourString);
-
+  lcd.setCursor(0,1);
+  lcd.print(timeString);
+  
   return true; //perhaps if fix not valid, or signal integrity not A or D, return false?
 }
 
