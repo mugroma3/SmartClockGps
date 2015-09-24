@@ -38,18 +38,18 @@ String GPSCommandString = "$GPRMC";     // the GPS command string that we are lo
 
 int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
 
-/*
-String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
+
+static const String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
 {"IT","Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Sett", "Ott", "Nov", "Dic"},
 {"ES","Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"},
 {"FR","Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"},
 {"DE","Jan", "Febr", "März", "April", "Mai", "Juni", "Juli", "Aug", "Sept", "Okt", "Nov", "Dez"}};
-*/
+
 
 String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
 
 int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
-
+boolean useLangStrings = false;
 
 void setup() {
   // put your setup code here, to run once:
@@ -149,17 +149,26 @@ boolean elaborateValues(String myString){
   timeString = hourString+":"+minuteString+":"+secondString;
 
   dayString = valueArray[1].substring(0,2);
-  //monthString = months[currentLocale][month];
-  monthString = valueArray[1].substring(2,4);
   yearString = valueArray[1].substring(4,6);
   
-  if(currentLocale == ENG){
-    dateString = monthString + "/" + dayString + "/20" + yearString;
+  if(useLangStrings){
+    monthString = months[currentLocale][month];
+    if(currentLocale == ENG){
+      dateString = monthString + " " + dayString + ", 20" + yearString;
+    }
+    else{
+      dateString = dayString + " " + monthString + " 20" + yearString;
+    }
   }
   else{
-    dateString = dayString + "/" + monthString + "/20" + yearString;
+    monthString = valueArray[1].substring(2,4);
+    if(currentLocale == ENG){
+      dateString = monthString + "/" + dayString + "/20" + yearString;
+    }
+    else{
+      dateString = dayString + "/" + monthString + "/20" + yearString;
+    }
   }
-  
   lcd.setCursor(0,0);
   lcd.print(dateString);
   lcd.setCursor(0,1);
