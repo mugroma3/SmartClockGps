@@ -107,35 +107,18 @@ boolean elaborateValues(String myString){
 
   Serial.println(myString);
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
-  //TODO: turn this into a for loop
-  int idxFirstComma = myString.indexOf(',');
-  int idxSecondComma = myString.indexOf(',', idxFirstComma+1);
-  int idxThirdComma = myString.indexOf(',', idxSecondComma+1);
-  int idxFourthComma = myString.indexOf(',', idxThirdComma+1);
-  int idxFifthComma = myString.indexOf(',', idxFourthComma+1);
-  int idxSixthComma = myString.indexOf(',', idxFifthComma+1);
-  int idxSeventhComma = myString.indexOf(',', idxSixthComma+1);
-  int idxEighthComma = myString.indexOf(',', idxSeventhComma+1);
-  int idxNinthComma = myString.indexOf(',', idxEighthComma+1);
-  int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
-  int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
-  int idxTwelfthComma = myString.indexOf(',', idxEleventhComma+1);
 
-/*
   int idxComma[12];
   for(int p=0;p<12;p++){
     if(p==0){ idxComma[p] = myString.indexOf(','); }
     else{ idxComma[p] = myString.indexOf(',', idxComma[p-1]+1); }
   }
-*/
-
 
   String valueArray[4];  
-  valueArray[0] = myString.substring(idxFirstComma+1, idxSecondComma); //TIME
-  valueArray[1] = myString.substring(idxNinthComma+1, idxTenthComma);  //DATE
-  valueArray[2] = myString.substring(idxThirdComma+1, idxFourthComma); //LATITUDE
-  valueArray[3] = myString.substring(idxFifthComma+1, idxSixthComma);  //LONGITUDE
-  
+  valueArray[0] = myString.substring(idxComma[0]+1, idxComma[1]);   //TIME
+  valueArray[1] = myString.substring(idxComma[8]+1, idxComma[9]);   //DATE
+  valueArray[2] = myString.substring(idxComma[2]+1, idxComma[3]);   //LATITUDE
+  valueArray[3] = myString.substring(idxComma[4]+1, idxComma[5]);   //LONGITUDE
 
 /*
   for(q=0;q<13;q++){
