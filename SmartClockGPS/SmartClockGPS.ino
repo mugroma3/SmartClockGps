@@ -13,102 +13,6 @@
  * http://muglab.uniroma3.it/
 */
 
-
-#include <SoftwareSerial.h>
-#include <LiquidCrystal.h>
-#include "Timer.h"                     //http://github.com/JChristensen/Timer
-
-#define ENG 0
-#define ITA 1
-#define ESP 2
-#define FRA 3
-#define DEU 4
-
-
-// initialize the display library with the numbers of the interface pins
-int RS = 11; //Register Select
-int EN = 10; //Enable
-LiquidCrystal lcd(RS, EN, 5, 4, 3, 2);
-
-// initialize the bluetooth serial data from HC-05
-SoftwareSerial BTSerial(13, 12); // RX | TX
-
-//instantiate the timer object
-Timer t;
-
-
-//define user definable globals, can change value, held in RAM memory
-int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
-int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
-boolean useLangStrings = false;
-
-// define global variables that can change value, held in RAM memory
-String inputString;                // a string to hold incoming data
-int currentTime;
-int tickEvent;
-String timeString;
-
-// define static variables, will never change, will be held in Flash memory instead of RAM
-static const String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
-
-static const String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
-{"IT","Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Sett", "Ott", "Nov", "Dic"},
-{"ES","Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"},
-{"FR","Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aout", "Sept", "Oct", "Nov", "Dec"},
-{"DE","Jan", "Febr", "Marz", "April", "Mai", "Juni", "Juli", "Aug", "Sept", "Okt", "Nov", "Dez"}};
-
-static const String settingsMenu[5][3] = {{"UTC OFFSET","LANGUAGE","DATE VIEW"},
-{"OFFSET UTC","LINGUA","VISTA DATA"},
-{"OFFSET UTC","IDIOMA","VISTA FECHA"},
-{"OFFSET UTC","LANGUE","VUE DATE"},
-{"OFFSET UTC","SPRACHE","ANZEIGEN DATUM"}};
-
-static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
-
-static const String languageValues[5] = {"English","Italiano","Espanol","Francais","Deutch"};
-
-static const String dateViewValues[5][2] = {{"String","Number"},
-{"Stringa","Numero"},
-{"Cadena","Numero"},
-{"Chaine","Nombre"},
-{"String","Zahl"}};
-
-
-void setup() {
-  // put your setup code here, to run once:
-  BTSerial.begin(38400);
-  Serial.begin(38400);
-  lcd.begin(16, 2);
-  inputString.reserve(300);
-  tickEvent = t.every(1000, updateClock);
-
-  currentTime = millis();
-  int seconds = round(currentTime / 1000);
-  int minutes = round(seconds / 60);
-  int hours = round(minutes / 60);
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  dateString = "dd / mm / yyyy";
-  lcd.setCursor(0,0);
-  lcd.print(timeString);
-  lcd.setCursor(0,1);
-  lcd.print(dateString);
-
-}
-
-void loop() {
-  t.update();
-  /*
-  if(BTSerial.available()>0){
-    inputString = BTSerial.readStringUntil('\n');
-    if(inputString.startsWith(GPSCommandString)){
-      boolean result = elaborateValues(inputString);
-    }
-  }
-  */
-}
-
-
-
 /*
  *
  * RMC - NMEA has its own version of essential gps pvt (position, velocity, time) data. It is called RMC, The Recommended Minimum, which will look similar to:
@@ -133,98 +37,181 @@ void loop() {
  * This mode character has been added to the RMC, RMB, VTG, and GLL, sentences and optionally some others including the BWC and XTE sentences. 
  * INFORMATION FROM http://www.gpsinformation.org/dale/nmea.htm
 */
+
+
+#include <SoftwareSerial.h>
+#include <LiquidCrystal.h>
+
+/********************************************INIZIALIZATION*******************************************/
+
+#define ENG 0
+#define ITA 1
+#define ESP 2
+#define FRA 3
+#define DEU 4
+
+//initialize buttons
+int buttonUtcAugment = 6;
+int buttonUtcReduce = 7;
+int buttonAugmentState = 0;
+int buttonReduceState = 0;
+boolean BUTTON_AUGMENT_PRESSED = false;
+boolean BUTTON_REDUCE_PRESSED = false;
+int oldtime; //useful for filtering button press
+int newtime; //useful for filtering button press
+
+// initialize the display library with the numbers of the interface pins
+int rs = 11;
+int en = 10;
+LiquidCrystal lcd(rs, en, 5, 4, 3, 2);
+
+// initialize the bluetooth serial data from HC-05
+SoftwareSerial BTSerial(13, 12); // RX | TX
+
+// define some global variables
+String inputString = "";                // a string to hold incoming data
+String GPSCommandString = "$GPRMC";     // the GPS command string that we are looking for
+int offsetUTC = 0;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
+
+//String languages[5] = {"English","Italiano","Español","Français","Deutch"}; //perhaps implement button for changing languages
+
+int currentLocale = ITA; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
+
+
+/********************************************************SETUP***************************************/
+
+void setup() {
+  // put your setup code here, to run once:
+   BTSerial.begin(38400);
+   Serial.begin(38400);
+   lcd.begin(16, 2);
+   inputString.reserve(300);
+   oldtime = millis(); //useful for filtering button presses
+   pinMode(buttonUtcAugment, INPUT);
+   pinMode(buttonUtcReduce, INPUT);
+}
+
+/********************************************************LOOP***************************************/
+
+void loop() {
+ newtime = millis(); //useful for filtering button press
+ if(BTSerial.available()>0){
+    inputString = BTSerial.readStringUntil('\n');
+    if(inputString.startsWith(GPSCommandString)){
+      elaborateValues(inputString);
+    }
+ }
+ pressButton();
+}
+
+/***********************************************METHODS********************************************/
+
+
 //TODO: double check whether time / date data is correct even when Fix Status = V (void)
 //TODO: double check also whether time / date data is valid when signal integrity != A and !=D
 
 boolean elaborateValues(String myString){
-  
+
   int hours,minutes,seconds,day,month,year;  
   String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
-
-  Serial.println(myString);
+  
   //The GPS Unit that we are using for our testing uses NMEA 2.3, so we have eleven commas instead of just ten
+  //TODO: turn this into a for loop
+  int idxFirstComma = myString.indexOf(',');
+  int idxSecondComma = myString.indexOf(',', idxFirstComma+1);
+  int idxThirdComma = myString.indexOf(',', idxSecondComma+1);
+  int idxFourthComma = myString.indexOf(',', idxThirdComma+1);
+  int idxFifthComma = myString.indexOf(',', idxFourthComma+1);
+  int idxSixthComma = myString.indexOf(',', idxFifthComma+1);
+  int idxSeventhComma = myString.indexOf(',', idxSixthComma+1);
+  int idxEighthComma = myString.indexOf(',', idxSeventhComma+1);
+  int idxNinthComma = myString.indexOf(',', idxEighthComma+1);
+  int idxTenthComma = myString.indexOf(',', idxNinthComma+1);
+  int idxEleventhComma = myString.indexOf(',', idxTenthComma+1);
+  int idxTwelfthComma = myString.indexOf(',', idxEleventhComma+1);
 
-  int idxComma[12];
-  for(int p=0;p<12;p++){
-    if(p==0){ idxComma[p] = myString.indexOf(','); }
-    else{ idxComma[p] = myString.indexOf(',', idxComma[p-1]+1); }
-  }
-
-  String valueArray[4];  
-  valueArray[0] = myString.substring(idxComma[0]+1, idxComma[1]);   //TIME
-  valueArray[1] = myString.substring(idxComma[8]+1, idxComma[9]);   //DATE
-  valueArray[2] = myString.substring(idxComma[2]+1, idxComma[3]);   //LATITUDE
-  valueArray[3] = myString.substring(idxComma[4]+1, idxComma[5]);   //LONGITUDE
-
+  String valueArray[13];
+//  valueArray[0] = myString.substring(0,idxFirstComma);                          //GPS Command (in this case, $GPRMC)
+  valueArray[1] = myString.substring(idxFirstComma+1, idxSecondComma);          //Time of fix (this is an atomic, precise time!)
 /*
-  for(q=0;q<13;q++){
-    if(q==0){ 
-      valueArray[q] = myString.substring(0,idxComma[q]); 
-    }
-    else if(q>0 && q <12){
-      valueArray[q] = myString.substring(idxComma[q-1]+1,idxComma[q]); 
-    }
-    else if(q==12){
-      valueArray[q] = myString.substring(idxComma[q-1]+1);
-    }
-  }
+  valueArray[2] = myString.substring(idxSecondComma+1, idxThirdComma);          //Status
+  valueArray[3] = myString.substring(idxThirdComma+1, idxFourthComma);          //Latitude
+  valueArray[4] = myString.substring(idxFourthComma+1, idxFifthComma);          //N
+  valueArray[5] = myString.substring(idxFifthComma+1, idxSixthComma);           //Longitude
+  valueArray[6] = myString.substring(idxSixthComma+1, idxSeventhComma);         //E
+  valueArray[7] = myString.substring(idxSeventhComma+1, idxEighthComma);        //Speed
+  valueArray[8] = myString.substring(idxEighthComma+1, idxNinthComma);          //Track angle
 */
-
-  hours = valueArray[0].substring(0,2).toInt() + offsetUTC;
+  valueArray[9] = myString.substring(idxNinthComma+1, idxTenthComma);           //Date
+/*
+  valueArray[10] = myString.substring(idxTenthComma+1, idxEleventhComma);       //Magnetic variation
+  valueArray[11] = myString.substring(idxEleventhComma+1, idxTwelfthComma);     //Signal integrity
+  valueArray[12] = myString.substring(idxTwelfthComma+1);                       //Checksum
+*/
+  hours = (valueArray[1].substring(0,2).toInt()) + offsetUTC;
   //minutes=(valueArray[1].substring(2,4)).toInt();
   //seconds=(valueArray[1].substring(4,6)).toInt();
   //day = valueArray[9].substring(0,2).toInt();
-  month = valueArray[1].substring(2,4).toInt();
+  month = valueArray[9].substring(2,4).toInt();
   //year = valueArray[9].substring(4,6).toInt();
   
-  hourString = String(hours);
-  Serial.println(hourString);
-
-  minuteString = valueArray[0].substring(2,4);
-  secondString = valueArray[0].substring(4,6);  
+  hourString += hours;
+  minuteString = valueArray[1].substring(2,4);
+  secondString = valueArray[1].substring(4,6);  
   timeString = hourString+":"+minuteString+":"+secondString;
 
-  dayString = valueArray[1].substring(0,2);
-  yearString = valueArray[1].substring(4,6);
+  dayString = valueArray[9].substring(0,2);
+  monthString += month;
+  yearString = valueArray[9].substring(4,6);
   
-  if(useLangStrings){
-    monthString = months[currentLocale][month];
-    if(currentLocale == ENG){
-      dateString = monthString + " " + dayString + ", 20" + yearString;
-    }
-    else{
-      dateString = dayString + " " + monthString + " 20" + yearString;
-    }
+  if(currentLocale == ENG){
+    dateString = monthString + "/" + dayString + "/20" + yearString;
   }
   else{
-    monthString = valueArray[1].substring(2,4);
-    if(currentLocale == ENG){
-      dateString = monthString + "/" + dayString + "/20" + yearString;
-    }
-    else{
-      dateString = dayString + "/" + monthString + "/20" + yearString;
-    }
+    dateString = dayString + "/" + monthString + "/20" + yearString;
   }
+ 
+  //dateString = dayString+"/"+monthString+"/"+yearString; 
+  Serial.print(dateString);
   lcd.setCursor(0,0);
   lcd.print(dateString);
   lcd.setCursor(0,1);
   lcd.print(timeString);
-  
   return true; //perhaps if fix not valid, or signal integrity not A or D, return false?
 }
 
-void updateClock()
-{
-  currentTime = millis();
-  int seconds = round(currentTime / 1000);
-  int minutes = round(seconds / 60);
-  int hours = round(minutes / 60);
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  dateString = "dd / mm / yyyy";
-  lcd.setCursor(0,0);
-  lcd.print(timeString);
-  lcd.setCursor(0,1);
-  lcd.print(dateString);
-}
+/***********************BUTTONS**************/
 
+void pressButton(){
+  buttonAugmentState = digitalRead(buttonUtcAugment);
+  buttonReduceState = digitalRead(buttonUtcReduce);
+
+    // CHECK STATE OF COMMAND BUTTON
+  if(buttonAugmentState == HIGH && BUTTON_AUGMENT_PRESSED == false && (newtime-oldtime) > 1000){
+    BUTTON_AUGMENT_PRESSED = true;
+    oldtime = newtime;
+  }
+  else{
+    BUTTON_AUGMENT_PRESSED = false;
+  }
+ 
+  // if the pushbutton utc+ is pressed it will augment the utc  
+  if(BUTTON_AUGMENT_PRESSED){
+    offsetUTC=offsetUTC+1;
+  }
+
+    // CHECK STATE OF COMMAND BUTTON
+  if(buttonReduceState == HIGH && BUTTON_REDUCE_PRESSED == false && (newtime-oldtime) > 1000){
+    BUTTON_REDUCE_PRESSED = true;
+    oldtime = newtime;
+  }
+  else{
+    BUTTON_REDUCE_PRESSED = false;
+  }
+  
+  // if the pushbutton utc- is pressed it will reduce the utc
+  if (BUTTON_REDUCE_PRESSED) {
+    offsetUTC=offsetUTC-1;
+  }
+}
 
