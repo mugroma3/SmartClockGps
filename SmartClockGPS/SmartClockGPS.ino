@@ -31,10 +31,9 @@
 
 //TABLES USED FOR CALCULATING DAY OF THE WEEK
 //Formula: (d + m + y + [y / 4] + c)mod7
-
 //static const int monthsTable[14] = {0,3,3,6,1,4,6,2,5,0,3,5,6,2}; //Jan~Dec,Jan_Leap_Year,Feb_Leap_Year
-static const int monthsTable[12] = {0,3,2,5,0,3,5,1,4,6,2,4};
-static const int century = 6;
+//static const int monthsTable[12] = {0,3,2,5,0,3,5,1,4,6,2,4};
+//static const int century = 6;
 
 
 // initialize the display library with the numbers of the interface pins
@@ -118,10 +117,9 @@ void setup() {
   lcd.begin(16, 2);
 
   
-  inputString.reserve(300);
-  tickEvent = t.every(1000, updateClock);
-  firstSynch = t.after(10, synchTime);
-  synchEvent = t.every(DAY,synchTime);   // 86400000 millis = 24 hours
+  tickEvent   = t.every(1000,       updateClock);
+  firstSynch  = t.after(10,         synchTime);
+  synchEvent  = t.every(DAYINMILLIS,synchTime);   // 86400000 millis = 24 hours
 
   lcd.setCursor(0,0);
   lcd.print("00:00:00");
