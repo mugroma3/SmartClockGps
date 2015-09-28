@@ -4,7 +4,7 @@
  * SmartClock using GPS to synchronize time with an atomic UTC timestamp
  * This project uses a bluetooth GPS module together with an HC-05 bluetooth module
  * to stream the GPS data over serial to the Arduino.
- * A 16x2 LCD Display Module is used to display the date and time
+ * A 16x2 LCD Display Module is used to display the date and time.
  * 
  * Licensed under GNU General Public License
  * 
@@ -25,16 +25,16 @@
 #define FRA 3
 #define DEU 4
 
-#define MINUTEINMILLIS 60000     // 1 minute (in milliseconds)
-#define HOURINMILLIS   3600000   // 1 hour (in milliseconds)
-#define DAYINMILLIS    86400000  // 24 hours (in milliseconds)
+#define MINUTEINMILLIS      60000     // 1 minute (in milliseconds)
+#define HOURINMILLIS        3600000   // 1 hour (in milliseconds)
+#define DAYINMILLIS         86400000  // 24 hours (in milliseconds)
 
-//TABLES USED FOR CALCULATING DAY OF THE WEEK
-//Formula: (d + m + y + [y / 4] + c)mod7
-//static const int monthsTable[14] = {0,3,3,6,1,4,6,2,5,0,3,5,6,2}; //Jan~Dec,Jan_Leap_Year,Feb_Leap_Year
-//static const int monthsTable[12] = {0,3,2,5,0,3,5,1,4,6,2,4};
-//static const int century = 6;
+#define MENUBUTTON          6
+#define NAVIGATEBUTTON      7
 
+#define UTCOFFSETMENUITEM   0
+#define LANGUAGEMENUITEM    1
+#define DATEVIEWMENUITEM    2
 
 // initialize the display library with the numbers of the interface pins
 int RS = 11; //Register Select
@@ -48,14 +48,14 @@ SoftwareSerial BTSerial(13, 12); // RX | TX
 Timer t;
 
 
-// define user definable globals, can change value, held in RAM memory
-int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
-int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
-boolean useLangStrings = false;
+// define user changeable globals (held in RAM memory)
+int offsetUTC = 0;
+int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (ENG, ITA, ESP, FRA, DEU)
+boolean useLangStrings = true;
 
 
 
-// define global variables that can change value, held in RAM memory
+// define global variables (not user changeable, only the program can change their value) held in RAM memory
 String GPSCommandString;              // the string that will hold the incoming GPS data stream (one line at a time)
 //unsigned long currentTime;          // will hold the Arduino millis()
 int currentYear = 0;
@@ -71,9 +71,21 @@ int synchEvent;                     // event that will be called once every 24 h
 String timeString;                  // final string of the time to display on the LCD
 String dateString;                  // final string of the data to display on the LCD
 
+int MENUBUTTONSTATE = LOW;
+int NAVIGATEBUTTONSTATE = LOW;
+boolean MENUBUTTONPRESSED = false;
+boolean NAVIGATEBUTTONPRESSED = false;
+unsigned long oldtime; //useful for filtering button press
+unsigned long newtime; //useful for filtering button press
+
+boolean MENUACTIVE = false;
+int MENULEVEL = 0;
+int CURRENTMENUITEM = 0;
+int PREVIOUSMENUITEM = 0;
+int MENUITEMS;
 
 
-// define static variables, will never change, will be held in Flash memory instead of RAM
+// define static variables, will never change (held in Flash memory instead of RAM)
 static const String GPSCommand = "$GPRMC";     // the GPS command string that we are looking for
 
 static const String months[5][13] = {{"EN","Jan","Feb","Mar","Apr","May","June","July","Aug","Sept","Oct","Nov","Dec"},
@@ -88,7 +100,9 @@ static const String dayOfWeek[5][7] = {{"Sun","Mon","Tue","Wed","Thu","Fri","Sat
 {"Dim","Lund","Mard","Merc","Jeud","Vend","Sam"},
 {"Sonn","Mon","Diens","Mitt","Donn","Frei","Sams"}};
 
-static const String settingsMenu[5][3] = {{"UTC OFFSET","LANGUAGE","DATE VIEW"},
+static const String settingsMenu[5] = {"SETTINGS","IMPOSTAZIONI","AJUSTES","PARAMETRES","EINSTELLUNGEN"};
+
+static const String settingsMenuItems[5][3] = {{"UTC OFFSET","LANGUAGE","DATE VIEW"},
 {"OFFSET UTC","LINGUA","VISTA DATA"},
 {"OFFSET UTC","IDIOMA","VISTA FECHA"},
 {"OFFSET UTC","LANGUE","VUE DATE"},
@@ -105,26 +119,29 @@ static const String dateViewValues[5][2] = {{"String","Number"},
 {"String","Zahl"}};
 
 
-
-
 void setup() {
   
   //initialize GPS Bluetooth Serial data
   BTSerial.begin(38400);
+  
   //optionally initialize Serial monitor (for debugging feedback)
   Serial.begin(38400);
+  
   //initialize lcd display
   lcd.begin(16, 2);
-
   
   tickEvent   = t.every(1000,       updateClock);
-  firstSynch  = t.after(10,         synchTime);
-  synchEvent  = t.every(DAYINMILLIS,synchTime);   // 86400000 millis = 24 hours
+  firstSynch  = t.after(1100,         synchTime);
+  synchEvent  = t.every(DAYINMILLIS,  synchTime);   // 86400000 millis = 24 hours
 
   lcd.setCursor(0,0);
-  lcd.print("00:00:00");
+  lcd.print("hh:mm:ss");
   lcd.setCursor(0,1);
-  lcd.print("dddd dd/mm/yyyy");
+  lcd.print("ddd dd/mm/yyyy");
+
+  oldtime = millis(); //useful for filtering button presses
+  pinMode(MENUBUTTON, INPUT);
+  pinMode(NAVIGATEBUTTON, INPUT);
 
 }
 
@@ -133,6 +150,10 @@ void setup() {
 
 
 void loop() {
+  
+  newtime = millis(); //useful for filtering button press
+  checkButtonsPressed();
+
   if(BTSerial.available()>0){
     String inputString = BTSerial.readStringUntil('\n');
     if(inputString.startsWith(GPSCommand)){
@@ -140,12 +161,17 @@ void loop() {
     }
   }
   t.update();
+
+  if(MENUACTIVE){
+    printMenu();
+  }
+  
 }
 
 
 
 /**************************
- * elaborateValues function
+ * elaborateGPSValues function
  * ************************
  * This function receives a one-line string of data from the GPS streamed data
  * It only receives the GPRMC command string
@@ -176,7 +202,7 @@ void loop() {
 */
 //TODO: double check whether time / date data is correct even when Fix Status = V (void)
 //TODO: double check also whether time / date data is valid when signal integrity != A and !=D
-boolean elaborateValues(String myString){
+boolean elaborateGPSValues(String myString){
   
   int hours,minutes,seconds,day,month,year;  
   String hourString,minuteString,secondString,dayString,monthString,yearString,timeString,dateString;
@@ -319,7 +345,7 @@ void updateClock()
   if(useLangStrings){
     String monthString = months[currentLocale][currentMonth];
     if(currentLocale==ENG){
-      dateString = today + " " + monthString + " " + ddString + ", " + yyString; 
+      dateString = today + " " + monthString + " " + ddString + " " + yyString; 
     }
     else{
       dateString = today + " " + ddString + " " + monthString + " " + yyString;
@@ -334,22 +360,29 @@ void updateClock()
     }
   }
   
-  lcd.setCursor(0,0);
-  lcd.print(timeString);
-
-  if(useLangStrings){
-    lcd.setCursor(0,1);
+  if(MENUACTIVE==false){
+    lcd.setCursor(0,0);
+    lcd.print(timeString);
+  
+    if(useLangStrings){
+      lcd.setCursor(0,1);
+    }
+    else{
+      lcd.setCursor(0,1);  
+    }
+    lcd.print(dateString);
   }
-  else{
-    lcd.setCursor(0,1);  
-  }
-  lcd.print(dateString);
 }
 
-
+/********************
+ * synchTime function
+ * ******************
+ * tries to get time values from GPS
+ * if not succeeds, tries again?
+*/
 void synchTime(){
-  boolean updatedInfo = elaborateValues(GPSCommandString);
-  //if not updatedInfo, perhaps set another one-time synch in 15 mins?
+  boolean updatedInfo = elaborateGPSValues(GPSCommandString);
+  //if not updatedInfo, perhaps set another one-time synch in 1 min?
 }
 
 
@@ -377,46 +410,16 @@ boolean isLeapYear(int year){
   return result;
 }
 
+
+
+
 /***********************
  * dayOfTheWeek function
- * 
+ * *********************
  * returns int from 0-6
  * corresponding to day of the week 
  * where 0=Sunday,6=Saturday
-*/
-/*
-int dayOfTheWeek(int day, int month, int year){
-  int century = 0;
-  //if January or February
-  if(month==1||month==2){
-    year--;
-    century = 1;
-  }
-  int yy = year % 28;
-  int y;
-  if(yy==1||yy==7||yy==12||yy==8){
-    y=1;
-  }
-  if(yy==2||yy==13||yy==19||yy==24){
-    y=2;
-  }
-  if(yy==3||yy==8||yy==14||yy==25){
-    y=3;
-  }
-  if(yy==9||yy==15||yy==20||yy==26){
-    y=4;
-  }
-  if(yy==4||yy==10||yy==21||yy==27){
-    y=5;
-  }
-  if(yy==5||yy==11||yy==16||yy==22){
-    y=6;
-  }
-  if(yy==6||yy==17||yy==23||yy==0){
-    y=0;
-  }
-  return (day + monthsTable[month] + y + century) % 7;
-}
+ * information gathered from wikipedia article https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week
 */
 int dayOfTheWeek(int y, int m, int d)  /* 1 <= m <= 12,  y > 1752 (in the U.K.) */
 {
@@ -424,3 +427,146 @@ int dayOfTheWeek(int y, int m, int d)  /* 1 <= m <= 12,  y > 1752 (in the U.K.) 
     y -= m < 3;
     return (y + y/4 - y/100 + y/400 + t[m-1] + d) % 7;
 }
+
+
+
+
+/******************************
+ * checkButtonsPressed function
+ * ****************************
+ * 
+ */
+
+void checkButtonsPressed(){
+  
+  // CHECK STATE OF MENU BUTTON
+  if(digitalRead(MENUBUTTON) == HIGH && MENUBUTTONPRESSED == false && (newtime-oldtime) > 1000){
+    MENUBUTTONPRESSED = true;
+    oldtime = newtime;
+  }
+  else{
+    MENUBUTTONPRESSED = false;
+  }
+  
+  // CHECK STATE OF NAVIGATE BUTTON
+  if(digitalRead(NAVIGATEBUTTON) == HIGH && NAVIGATEBUTTONPRESSED == false && (newtime-oldtime) > 1000){
+    NAVIGATEBUTTONPRESSED = true;
+    oldtime = newtime;
+    lcd.clear();
+  }
+  else{
+    NAVIGATEBUTTONPRESSED = false;
+  }
+
+  if(MENUBUTTONPRESSED && MENUACTIVE == false){
+    MENUBUTTONPRESSED = false;
+    MENUACTIVE = true; //will stay true until a final menu selection has taken place
+    lcd.clear();
+  }
+  else if(MENUBUTTONPRESSED && MENUACTIVE == true){
+    MENUBUTTONPRESSED = false;
+    if(MENULEVEL == 0){
+      PREVIOUSMENUITEM = CURRENTMENUITEM;
+      MENULEVEL++;
+      lcd.clear();
+    }
+    else{
+      saveSettings();
+      resetAndExitMenu();
+      lcd.clear();
+    }
+  }
+
+  if(NAVIGATEBUTTONPRESSED && MENUACTIVE){
+    NAVIGATEBUTTONPRESSED = false;
+    CURRENTMENUITEM++;
+    if(CURRENTMENUITEM >= MENUITEMS){
+      CURRENTMENUITEM = 0;
+    }
+  }
+
+  
+}
+
+
+/********************
+ * printMenu function
+ * ******************
+ */
+
+void printMenu(){
+    //lcd.clear();
+    if(MENULEVEL == 0){
+      lcd.setCursor(0,0);  
+      lcd.print(settingsMenu[currentLocale]);
+
+      MENUITEMS = 3;
+      lcd.setCursor(0,1);
+      lcd.print(">> "+settingsMenuItems[currentLocale][CURRENTMENUITEM]);      
+    }  
+    else if(MENULEVEL == 1){
+      lcd.setCursor(0,0);
+      lcd.print(""+settingsMenuItems[currentLocale][PREVIOUSMENUITEM]);
+      
+      //determine number of menu items
+      if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
+        MENUITEMS = 27;
+        lcd.setCursor(0,1);
+        lcd.print(utcOffsetValues[CURRENTMENUITEM]);
+      }
+      else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
+        MENUITEMS = 5;
+        lcd.setCursor(0,1);
+        lcd.print(languageValues[CURRENTMENUITEM]);
+      }
+      else if(PREVIOUSMENUITEM == DATEVIEWMENUITEM){
+        MENUITEMS = 2;
+        lcd.setCursor(0,1);
+        lcd.print(dateViewValues[currentLocale][CURRENTMENUITEM]);
+      }
+      
+    }
+}
+
+
+
+
+
+/***********************
+ * saveSettings function
+ * *********************
+ * 
+ */
+
+void saveSettings(){
+    if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
+      offsetUTC += utcOffsetValues[CURRENTMENUITEM].toInt();
+    }
+    else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
+      currentLocale = CURRENTMENUITEM;
+    }
+    else if(PREVIOUSMENUITEM == DATEVIEWMENUITEM){
+      useLangStrings = CURRENTMENUITEM==0?true:false;
+    }
+}
+
+
+
+
+
+
+/***************************
+ * resetAndExitMenu function
+ * *************************
+ * 
+ */
+
+
+void resetAndExitMenu(){
+    PREVIOUSMENUITEM = 0;
+    CURRENTMENUITEM = 0;
+    MENULEVEL = 0;
+    MENUITEMS = 0;
+    MENUACTIVE = false;
+}
+
