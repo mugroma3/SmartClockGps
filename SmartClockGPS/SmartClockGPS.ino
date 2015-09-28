@@ -68,8 +68,10 @@ int currentSecond = 0;
 int tickEvent;                      // event that will be called once every second to create the local Arduino clock
 int firstSynch;                     // event that will be called once after 1 second to synch the local Arduino clock with GPS time data
 int synchEvent;                     // event that will be called once every 24 hours to synch the local Arduino clock with GPS time data
+int chronometerEvent;               // event that will be called once every 50 milliseconds as a chronometer function
 String timeString;                  // final string of the time to display on the LCD
 String dateString;                  // final string of the data to display on the LCD
+unsigned long currentMillis;        // will count the current milliseconds of the Arduino when the chronometer function is activated
 
 int MENUBUTTONSTATE = LOW;
 int NAVIGATEBUTTONSTATE = LOW;
@@ -133,6 +135,7 @@ void setup() {
   tickEvent   = t.every(1000,       updateClock);
   firstSynch  = t.after(1100,         synchTime);
   synchEvent  = t.every(DAYINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+  chronometerEvent = t.every(50,    chronometer);
 
   lcd.setCursor(0,0);
   lcd.print("hh:mm:ss");
@@ -260,32 +263,6 @@ boolean elaborateGPSValues(String myString){
 */
 void updateClock()
 {
-  /*
-  //currentTime = millis();
-  //currentTime += 1000;
-  
-  int seconds = round(currentTime / 1000);  
-  if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
-  
-  int minutes = round(currentTime / 1000 / 60);  
-  if(minutes>59){ minutes = minutes - (60 * (minutes / 60)); }
-  
-  int hours = round(currentTime / 1000 / 60 / 60);
-  if(hours>23){ hours = hours - (24 * (hours / 24)); }
-  
-  int days = round(currentTime / 1000 / 60 / 60 / 24);
-  if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
-  
-  int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
-  if(months>11){ months = months - (12 * (months / 12)); }
-  
-  int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
-  
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  String ddString = (days<10?"0"+String(days):String(days));
-  String mmString = (months<10?"0"+String(months):String(months));
-  String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
-  */
 
   currentSecond++;
   
@@ -486,7 +463,12 @@ void checkButtonsPressed(){
     }
   }
 
-  
+  //CHRONOMETER FUNCTION BUTTON
+  //IF CHRONOMETER PRESSED, THEN {
+  //currentMillis = millis();
+  //lcd.clear();
+  //chronometer();
+  //}
 }
 
 
@@ -584,5 +566,43 @@ void resetAndExitMenu(){
     MENULEVEL = 0;
     MENUITEMS = 0;
     MENUACTIVE = false;
+}
+
+/*********************************
+ * chronometer function
+ * *******************************
+ * is called every 50 milliseconds
+ */
+
+void chronometer(){
+  
+  unsigned long currentTime = millis() - currentMillis;
+  
+  int seconds = round(currentTime / 1000);  
+  if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
+  
+  int minutes = round(currentTime / 1000 / 60);  
+  if(minutes>59){ minutes = minutes - (60 * (minutes / 60)); }
+  
+  int hours = round(currentTime / 1000 / 60 / 60);
+  if(hours>23){ hours = hours - (24 * (hours / 24)); }
+  
+  int days = round(currentTime / 1000 / 60 / 60 / 24);
+  if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
+  
+  int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
+  if(months>11){ months = months - (12 * (months / 12)); }
+  
+  int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
+  
+  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
+  String ddString = (days<10?"0"+String(days):String(days));
+  String mmString = (months<10?"0"+String(months):String(months));
+  String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
+  
+  //lcd print only milliseconds if second has not yet changed...
+  //lcd print seconds and milliseconds when second has changed...
+  //lcd print minutes, seconds, and milliseconds when minute has changed...
+  //This way the screen will not flicker constantly
 }
 
