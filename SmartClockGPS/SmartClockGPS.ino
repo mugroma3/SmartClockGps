@@ -48,18 +48,6 @@ SoftwareSerial BTSerial(13, 12); // RX | TX
 Timer t;
 
 
-<<<<<<< HEAD
-//define user definable globals, can change value, held in RAM memory
-int offsetUTC = 2;                      // until we can implement an automatic timezone correction based on coordinates, we will assume UTC+2 timezone (Europe/Rome)
-int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (EN, IT, ES, FR, DE)
-boolean useLangStrings = false;
-
-// define global variables that can change value, held in RAM memory
-String inputString;                // a string to hold incoming data
-int currentTime;
-int tickEvent;
-String timeString;
-=======
 // define user changeable globals (held in RAM memory)
 int offsetUTC = 0;
 int currentLocale = ENG; // we will be displaying our strings in Italian for our own test phase, can be changed to another european locale (ENG, ITA, ESP, FRA, DEU)
@@ -98,7 +86,6 @@ int CURRENTMENUITEM = 0;
 int PREVIOUSMENUITEM = 0;
 int MENUITEMS;
 
->>>>>>> wmenu
 
 // define static variables, will never change (held in Flash memory instead of RAM)
 static const String GPSCommand = "$GPRMC";     // the GPS command string that we are looking for
@@ -135,25 +122,6 @@ static const String dateViewValues[5][2] = {{"String","Number"},
 
 
 void setup() {
-<<<<<<< HEAD
-  // put your setup code here, to run once:
-  BTSerial.begin(38400);
-  Serial.begin(38400);
-  lcd.begin(16, 2);
-  inputString.reserve(300);
-  tickEvent = t.every(1000, updateClock);
-
-  currentTime = millis();
-  int seconds = round(currentTime / 1000);
-  int minutes = round(seconds / 60);
-  int hours = round(minutes / 60);
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  dateString = "dd / mm / yyyy";
-  lcd.setCursor(0,0);
-  lcd.print(timeString);
-  lcd.setCursor(0,1);
-  lcd.print(dateString);
-=======
   
   //initialize GPS Bluetooth Serial data
   BTSerial.begin(38400);
@@ -177,7 +145,6 @@ void setup() {
   oldtime = millis(); //useful for filtering button presses
   pinMode(MENUBUTTON, INPUT);
   pinMode(NAVIGATEBUTTON, INPUT);
->>>>>>> wmenu
 
 }
 
@@ -186,17 +153,6 @@ void setup() {
 
 
 void loop() {
-<<<<<<< HEAD
-  t.update();
-  /*
-  if(BTSerial.available()>0){
-    inputString = BTSerial.readStringUntil('\n');
-    if(inputString.startsWith(GPSCommandString)){
-      boolean result = elaborateValues(inputString);
-    }
-  }
-  */
-=======
   
   newtime = millis(); //useful for filtering button press
   checkButtonsPressed();
@@ -213,7 +169,6 @@ void loop() {
     printMenu();
   }
   
->>>>>>> wmenu
 }
 
 
@@ -650,19 +605,4 @@ void chronometer(){
   //lcd print minutes, seconds, and milliseconds when minute has changed...
   //This way the screen will not flicker constantly
 }
-
-void updateClock()
-{
-  currentTime = millis();
-  int seconds = round(currentTime / 1000);
-  int minutes = round(seconds / 60);
-  int hours = round(minutes / 60);
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  dateString = "dd / mm / yyyy";
-  lcd.setCursor(0,0);
-  lcd.print(timeString);
-  lcd.setCursor(0,1);
-  lcd.print(dateString);
-}
-
 
