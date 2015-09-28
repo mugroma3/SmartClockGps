@@ -440,7 +440,7 @@ int dayOfTheWeek(int y, int m, int d)  /* 1 <= m <= 12,  y > 1752 (in the U.K.) 
 void checkButtonsPressed(){
   
   // CHECK STATE OF MENU BUTTON
-  if(digitalRead(MENUBUTTON) == HIGH && MENUBUTTONPRESSED == false && (newtime-oldtime) > 200){
+  if(digitalRead(MENUBUTTON) == HIGH && MENUBUTTONPRESSED == false && (newtime-oldtime) > 400){
     MENUBUTTONPRESSED = true;
     oldtime = newtime;
   }
@@ -449,7 +449,7 @@ void checkButtonsPressed(){
   }
   
   // CHECK STATE OF NAVIGATE BUTTON
-  if(digitalRead(NAVIGATEBUTTON) == HIGH && NAVIGATEBUTTONPRESSED == false && (newtime-oldtime) > 200){
+  if(digitalRead(NAVIGATEBUTTON) == HIGH && NAVIGATEBUTTONPRESSED == false && (newtime-oldtime) > 400){
     NAVIGATEBUTTONPRESSED = true;
     oldtime = newtime;
     lcd.clear();
@@ -467,6 +467,7 @@ void checkButtonsPressed(){
     MENUBUTTONPRESSED = false;
     if(MENULEVEL == 0){
       PREVIOUSMENUITEM = CURRENTMENUITEM;
+      CURRENTMENUITEM = 0;
       MENULEVEL++;
       lcd.clear();
     }
