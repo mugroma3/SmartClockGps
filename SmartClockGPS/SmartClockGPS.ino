@@ -238,7 +238,7 @@ boolean elaborateGPSValues(String myString){
   }
 */
 
-  currentHour   = valueArray[0].substring(0,2).toInt();
+  currentHour   = valueArray[0].substring(0,2).toInt() + offsetUTC;
   currentMinute = valueArray[0].substring(2,4).toInt();
   currentSecond = valueArray[0].substring(4,6).toInt();
   
@@ -440,7 +440,7 @@ int dayOfTheWeek(int y, int m, int d)  /* 1 <= m <= 12,  y > 1752 (in the U.K.) 
 void checkButtonsPressed(){
   
   // CHECK STATE OF MENU BUTTON
-  if(digitalRead(MENUBUTTON) == HIGH && MENUBUTTONPRESSED == false && (newtime-oldtime) > 1000){
+  if(digitalRead(MENUBUTTON) == HIGH && MENUBUTTONPRESSED == false && (newtime-oldtime) > 200){
     MENUBUTTONPRESSED = true;
     oldtime = newtime;
   }
@@ -449,7 +449,7 @@ void checkButtonsPressed(){
   }
   
   // CHECK STATE OF NAVIGATE BUTTON
-  if(digitalRead(NAVIGATEBUTTON) == HIGH && NAVIGATEBUTTONPRESSED == false && (newtime-oldtime) > 1000){
+  if(digitalRead(NAVIGATEBUTTON) == HIGH && NAVIGATEBUTTONPRESSED == false && (newtime-oldtime) > 200){
     NAVIGATEBUTTONPRESSED = true;
     oldtime = newtime;
     lcd.clear();
@@ -540,7 +540,22 @@ void printMenu(){
 
 void saveSettings(){
     if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
-      offsetUTC += utcOffsetValues[CURRENTMENUITEM].toInt();
+      Serial.println("Saving UTC OFFSET... current selected value = "+utcOffsetValues[CURRENTMENUITEM]);
+      if(utcOffsetValues[CURRENTMENUITEM].startsWith("+") || utcOffsetValues[CURRENTMENUITEM].startsWith("-")){
+        String signVal = utcOffsetValues[CURRENTMENUITEM].substring(0,1);
+        int numVal = utcOffsetValues[CURRENTMENUITEM].substring(1).toInt();
+        Serial.println("Split into sign = <"+signVal+"> and number = <"+numVal+">");
+        if(signVal == "+"){
+          offsetUTC = (0 + numVal);
+        }
+        else if(signVal == "-"){
+          offsetUTC = (0 - numVal);
+        }
+        //Serial.print("offsetUTC now has value <");
+        //Serial.print(offsetUTC);
+        //Serial.println(">");
+        synchTime();
+      }
     }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
       currentLocale = CURRENTMENUITEM;
