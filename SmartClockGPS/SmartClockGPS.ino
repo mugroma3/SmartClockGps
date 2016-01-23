@@ -1,18 +1,21 @@
 /*
- * GPS-SmartClock ™
- * 
- * SmartClock using GPS to synchronize time with an atomic UTC timestamp
- * This project uses a bluetooth GPS module together with an HC-05 bluetooth module
- * to stream the GPS data over serial to the Arduino.
- * A 16x2 LCD Display Module is used to display the date and time.
- * 
- * Licensed under GNU General Public License
- * 
- * by Vincenzo d'Orso (icci87@gmail.com) e John D'Orazio (john.dorazio@cappellaniauniroma3.org)
+ * Project:       GPS-SmartClock ™
+ * Description:   Clock using GPS serial data in form of NMEA strings 
+ *                to synchronize it's time with the atomic UTC timestamp provided in such strings
+ *                This project uses a bluetooth GPS module together with an HC-05 bluetooth module
+ *                to stream the GPS data over serial to the Arduino.
+ *                A 16x2 LCD Display Module is used to display the date and time.
+ * Board:         Atmega 1284P on a breadboard using bootloader "maniacbug Mighty 1284P 16MHZ using Optiboot"
+ * Bootloader:    https://github.com/JChristensen/mighty-1284p/tree/v1.6.3 (for usage with Arduino 1.6.3 and higher)
+ * Authors:       Vincenzo d'Orso (icci87@gmail.com) and John D'Orazio (john.dorazio@cappellaniauniroma3.org)
+ * License:       GPLv3 (see full license at bottom of this file)
+ * Last Modified: 23 January 2016
  * 
  * A project of the Microcontrollers Users Group - Roma Tre University
- * http://muglab.uniroma3.it/
-*/
+ * MUG UniRoma3 http://muglab.uniroma3.it/
+ * 
+ *     
+ */
 
 
 #include <SoftwareSerial.h>
@@ -606,3 +609,18 @@ void chronometer(){
   //This way the screen will not flicker constantly
 }
 
+/*
+ *  Copyright (c) 2016 John Romano D'Orazio (john.dorazio@cappellaniauniroma3.org)
+ *  and Vincenzo d'Orso (icci87@gmail.com)
+ * 
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
