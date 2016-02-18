@@ -94,6 +94,15 @@ static const String HC05_ERRORMESSAGE[29] = {
   "Invalid Encryption Mode entered"
 };
 
+static const String initphase[4] = {
+  "INITIALIZING.",
+  "INITIALIZING..",
+  "INITIALIZING...",
+  "INITIALIZING...."
+};
+
+int initcount = 0;
+
 ProgramState OLDPROGRAMSTATE;
 ProgramState CURRENTPROGRAMSTATE;
 boolean PROGRAMSTATECHANGED;
@@ -272,22 +281,55 @@ void loop() {
 
   if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == INITIALSTATECHECK){
     HC05_STATE = Check_HC05_STATE();
+    newtime = millis();
+    if(newtime > (oldtime + 500)){
+      oldtime = newtime;
+      lcd.setCursor(0,0);
+      lcd.print(initphase[initcount]);
+      initcount++;
+      if(initcount > 3){ initcount = 0; }
+    }
     if(HC05_STATE == CONNECTED){
-      //Serial.println("HC-05 is connected and is now listening for NMEA data...");
+      lcd.setCursor(0,1);
+      lcd.print("LINKED TO GPS!  ");
+      Serial.println("HC-05 is connected and is now listening for NMEA data...");
       CURRENTPROGRAMSTATE = LISTENNMEA;
     }
     else if(HC05_STATE == DISCONNECTED){
-      //Serial.println("HC-05 is not connected, so let's see what we can do about that.");
+      lcd.setCursor(0,1);
+      lcd.print("NO LINK TO GPS..");
+      Serial.println("HC-05 is not connected, so let's see what we can do about that.");
       HC05_MODE = AT_MODE;      
       Set_HC05_MODE();
     }
   }
   else if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == DO_ADCN){
+      newtime = millis();
+      if(newtime > (oldtime + 500)){
+        oldtime = newtime;
+        lcd.setCursor(0,0);
+        lcd.print(initphase[initcount]);
+        lcd.setCursor(0,1);
+        lcd.print("RECENT DEVICES..");
+        initcount++;
+        if(initcount > 3){ initcount = 0; }
+      }
     CountRecentAuthenticatedDevices();
   }
-  else if(CURRENTPROGRAMSTATE == LISTENNMEA){
+  else if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == LISTENNMEA){
     newtime = millis(); //useful for filtering button press
     checkButtonsPressed();
+  }
+  else if(SETTINGHC05MODE == true){
+    newtime = millis();
+    if(newtime > (oldtime + 500)){
+      oldtime = newtime;
+      lcd.setCursor(0,0);
+      lcd.print(initphase[initcount]);
+      lcd.setCursor(0,1);
+      initcount++;
+      if(initcount > 3){ initcount = 0; }
+    }
   }
 
   //TODO: instead of reading input from Serial monitor, use buttons!
@@ -459,8 +501,14 @@ void loop() {
             break;
             
           case INQUIRINGDEVICES:
+            lcd.setCursor(0,0);
+            lcd.print("SearchingDevices");
             if(incoming.startsWith("OK")){
               Serial.println("Finished inquiring devices.");
+              lcd.setCursor(0,1);
+              lcd.print("FOUND ");
+              lcd.print(deviceCount);
+              lcd.print(" DEVICES ");
               currentDeviceIdx=0;
               if(deviceCount > 0){
                 currentDeviceAddr = devices[currentDeviceIdx];
@@ -478,6 +526,8 @@ void loop() {
               String addr = incoming.substring(idx+1,idx2);
               addr.replace(':',',');
               addr.trim();
+              lcd.setCursor(0,1);
+              lcd.print(addr);
               if(inArray(addr,devices,MAX_DEVICES) == -1){ 
                 devices[deviceCount] = addr;
                 deviceCount++;
@@ -486,12 +536,46 @@ void loop() {
             break;
 
           case CONFRONTINGUSER:
-            if(incoming.startsWith("+RNAME")){                    
+            if(incoming.startsWith("+RNAME")){                                  
+              incoming.trim();
               currentDeviceName = incoming.substring(incoming.indexOf(':')+1);
               
               flushOkString();
               
               Serial.println("Would you like to connect to '" + currentDeviceName + "'? Please type Y or N.");
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print(" ConnectDevice? ");
+              lcd.setCursor(0,1);
+              lcd.print("Y");
+              int devNameLen = currentDeviceName.length();
+              int space = 16-(devNameLen+2);
+              if(space>0){
+                if(space % 2 == 0){
+                   for(int p=0;p<(space/2);p++){
+                    lcd.print(" ");
+                   }
+                   lcd.print(currentDeviceName);
+                   for(int p=0;p<(space/2);p++){
+                    lcd.print(" ");
+                   }                   
+                }
+                else{
+                   for(int p=0;p<(ceil(space/2));p++){
+                    lcd.print(" ");
+                   }
+                   lcd.print(currentDeviceName);
+                   for(int p=0;p<(floor(space/2));p++){
+                    lcd.print(" ");
+                   }                                     
+                }
+              }
+              else{
+                lcd.print(currentDeviceName);
+                lcd.setCursor(14,1);
+                lcd.print(" ");
+              }
+              lcd.print("N");
             }
             else if(incoming.startsWith("FAIL")){
               Serial.println("Could not retrieve name of detected device... continuing to next");
@@ -741,6 +825,8 @@ void updateClock()
       lcd.setCursor(0,1);  
     }
     lcd.print(dateString);
+  }
+  else if(CURRENTPROGRAMSTATE == CONFRONTINGUSER){
   }
 }
 
@@ -1005,6 +1091,8 @@ void Set_HC05_MODE(){
   Serial.print(F("[currentFunctionStep = "));
   Serial.print(String(currentFunctionStep));
   Serial.println(F("]"));
+  lcd.setCursor(0,1);
+  lcd.print("ddd dd/mm/yyyy");
   if(currentFunctionStep==0 && SETTINGHC05MODE == false){
     SETTINGHC05MODE = true;
     Serial.print(F("Now setting HC-05 mode to "));
