@@ -95,13 +95,18 @@ static const String HC05_ERRORMESSAGE[29] = {
 };
 
 static const String initphase[4] = {
-  "INITIALIZING.",
-  "INITIALIZING..",
-  "INITIALIZING...",
+  "INITIALIZING.   ",
+  "INITIALIZING..  ",
+  "INITIALIZING... ",
   "INITIALIZING...."
+};
+static const String searchphase[2] = {
+  "SearchingDevices",
+  "-v-^-v-^-v-^-v-^",
 };
 
 int initcount = 0;
+int searchcount = 0;
 
 ProgramState OLDPROGRAMSTATE;
 ProgramState CURRENTPROGRAMSTATE;
@@ -239,10 +244,10 @@ void setup() {
   
   //initialize lcd display
   lcd.begin(16, 2);
-  lcd.setCursor(0,0);
-  lcd.print("hh:mm:ss");
-  lcd.setCursor(0,1);
-  lcd.print("ddd dd/mm/yyyy");
+  //lcd.setCursor(0,0);
+  //lcd.print("hh:mm:ss");
+  //lcd.setCursor(0,1);
+  //lcd.print("ddd dd/mm/yyyy");
 
   tickEvent   = t.every(1000,       updateClock);
   firstSynch  = t.after(1100,         synchTime);
@@ -281,14 +286,6 @@ void loop() {
 
   if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == INITIALSTATECHECK){
     HC05_STATE = Check_HC05_STATE();
-    newtime = millis();
-    if(newtime > (oldtime + 500)){
-      oldtime = newtime;
-      lcd.setCursor(0,0);
-      lcd.print(initphase[initcount]);
-      initcount++;
-      if(initcount > 3){ initcount = 0; }
-    }
     if(HC05_STATE == CONNECTED){
       lcd.setCursor(0,1);
       lcd.print("LINKED TO GPS!  ");
@@ -304,32 +301,13 @@ void loop() {
     }
   }
   else if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == DO_ADCN){
-      newtime = millis();
-      if(newtime > (oldtime + 500)){
-        oldtime = newtime;
-        lcd.setCursor(0,0);
-        lcd.print(initphase[initcount]);
-        lcd.setCursor(0,1);
-        lcd.print("RECENT DEVICES..");
-        initcount++;
-        if(initcount > 3){ initcount = 0; }
-      }
     CountRecentAuthenticatedDevices();
   }
-  else if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == LISTENNMEA){
+  else if(SETTINGHC05MODE == false && (CURRENTPROGRAMSTATE == LISTENNMEA || CURRENTPROGRAMSTATE == CONFRONTINGUSER)){
     newtime = millis(); //useful for filtering button press
     checkButtonsPressed();
   }
   else if(SETTINGHC05MODE == true){
-    newtime = millis();
-    if(newtime > (oldtime + 500)){
-      oldtime = newtime;
-      lcd.setCursor(0,0);
-      lcd.print(initphase[initcount]);
-      lcd.setCursor(0,1);
-      initcount++;
-      if(initcount > 3){ initcount = 0; }
-    }
   }
 
   //TODO: instead of reading input from Serial monitor, use buttons!
@@ -501,8 +479,6 @@ void loop() {
             break;
             
           case INQUIRINGDEVICES:
-            lcd.setCursor(0,0);
-            lcd.print("SearchingDevices");
             if(incoming.startsWith("OK")){
               Serial.println("Finished inquiring devices.");
               lcd.setCursor(0,1);
@@ -527,7 +503,11 @@ void loop() {
               addr.replace(':',',');
               addr.trim();
               lcd.setCursor(0,1);
+              int spaces = 16-addr.length();
               lcd.print(addr);
+              for(int p=0;p<spaces;p++){
+                lcd.print(" ");
+              }
               if(inArray(addr,devices,MAX_DEVICES) == -1){ 
                 devices[deviceCount] = addr;
                 deviceCount++;
@@ -616,6 +596,7 @@ void loop() {
           case CONNECTINGTODEVICE:
             if(incoming.startsWith("OK")){
               Serial.println("Successfully connected to "+currentDeviceName);
+              lcd.clear();              
               //WE HAVE MOST PROBABLY LEFT AT MODE AND ARE IN COMMUNICATION MODE NOW
               CURRENTPROGRAMSTATE = LISTENNMEA;
             }
@@ -818,7 +799,7 @@ void updateClock()
     lcd.setCursor(0,0);
     lcd.print(timeString);
   
-    if(useLangStrings){
+    if(useLangStrings){ //TODO: what is this?
       lcd.setCursor(0,1);
     }
     else{
@@ -826,7 +807,17 @@ void updateClock()
     }
     lcd.print(dateString);
   }
-  else if(CURRENTPROGRAMSTATE == CONFRONTINGUSER){
+  else if(SETTINGHC05MODE == true || (CURRENTPROGRAMSTATE == INITIALSTATECHECK || CURRENTPROGRAMSTATE == DO_ADCN)){
+    lcd.setCursor(0,0);
+    lcd.print(initphase[initcount]);
+    initcount++;
+    if(initcount > 3){ initcount = 0; }
+  }
+  else if(CURRENTPROGRAMSTATE == INQUIRINGDEVICES){
+    lcd.setCursor(0,0);
+    lcd.print(searchphase[searchcount]);
+    searchcount = 1 ^ searchcount;
+    Serial.println("(searchcount = " + (String)searchcount + ")");
   }
 }
 
@@ -916,34 +907,66 @@ void checkButtonsPressed(){
     NAVIGATEBUTTONPRESSED = false;
   }
 
-  if(MENUBUTTONPRESSED && MENUACTIVE == false){
-    MENUBUTTONPRESSED = false;
-    MENUACTIVE = true; //will stay true until a final menu selection has taken place
-    lcd.clear();
+  if(CURRENTPROGRAMSTATE == CONFRONTINGUSER){
+    if(MENUBUTTONPRESSED){
+      MENUBUTTONPRESSED = false;
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("-Linking device-");
+      currentCMODE = SetConnectionMode(CONNECT_BOUND);
+    }
+    if(NAVIGATEBUTTONPRESSED){
+      NAVIGATEBUTTONPRESSED = false;
+      currentDeviceIdx++;
+      if(currentDeviceIdx < deviceCount){
+        while(devices[currentDeviceIdx] == devices[currentDeviceIdx-1]){
+          if(currentDeviceIdx < deviceCount-1){ currentDeviceIdx++; }
+          else{ break; }            
+        }
+        if(devices[currentDeviceIdx] != devices[currentDeviceIdx-1]){
+          currentDeviceAddr = devices[currentDeviceIdx];
+          ConfrontUserWithDevice(currentDeviceAddr);
+        }
+        else{
+          //Serial.println("Devices are exhausted. Perhaps you need to turn on the correct Bluetooth Device and make it searchable.");            
+          InitiateInquiry();
+        }
+      }
+      else{
+        //Serial.println("Devices are exhausted. Perhaps you need to turn on the correct Bluetooth Device and make it searchable.");
+        InitiateInquiry();
+      }      
+    }
   }
-  else if(MENUBUTTONPRESSED && MENUACTIVE == true){
-    MENUBUTTONPRESSED = false;
-    if(MENULEVEL == 0){
-      PREVIOUSMENUITEM = CURRENTMENUITEM;
-      CURRENTMENUITEM = 0;
-      MENULEVEL++;
+  else{
+    if(MENUBUTTONPRESSED && MENUACTIVE == false){
+      MENUBUTTONPRESSED = false;
+      MENUACTIVE = true; //will stay true until a final menu selection has taken place
       lcd.clear();
     }
-    else{
-      saveSettings();
-      resetAndExitMenu();
-      lcd.clear();
+    else if(MENUBUTTONPRESSED && MENUACTIVE == true){
+      MENUBUTTONPRESSED = false;
+      if(MENULEVEL == 0){
+        PREVIOUSMENUITEM = CURRENTMENUITEM;
+        CURRENTMENUITEM = 0;
+        MENULEVEL++;
+        lcd.clear();
+      }
+      else{
+        saveSettings();
+        resetAndExitMenu();
+        lcd.clear();
+      }
+    }
+  
+    if(NAVIGATEBUTTONPRESSED && MENUACTIVE){
+      NAVIGATEBUTTONPRESSED = false;
+      CURRENTMENUITEM++;
+      if(CURRENTMENUITEM >= MENUITEMS){
+        CURRENTMENUITEM = 0;
+      }
     }
   }
-
-  if(NAVIGATEBUTTONPRESSED && MENUACTIVE){
-    NAVIGATEBUTTONPRESSED = false;
-    CURRENTMENUITEM++;
-    if(CURRENTMENUITEM >= MENUITEMS){
-      CURRENTMENUITEM = 0;
-    }
-  }
-
   //CHRONOMETER FUNCTION BUTTON
   //IF CHRONOMETER PRESSED, THEN {
   //currentMillis = millis();
@@ -1092,7 +1115,7 @@ void Set_HC05_MODE(){
   Serial.print(String(currentFunctionStep));
   Serial.println(F("]"));
   lcd.setCursor(0,1);
-  lcd.print("ddd dd/mm/yyyy");
+  //lcd.print("ddd dd/mm/yyyy"); //TODO: add useful message
   if(currentFunctionStep==0 && SETTINGHC05MODE == false){
     SETTINGHC05MODE = true;
     Serial.print(F("Now setting HC-05 mode to "));
