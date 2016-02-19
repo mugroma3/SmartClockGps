@@ -36,13 +36,15 @@
 //time definitions
 #define SECONDINMILLIS      1000      // 1 second (in milliseconds)
 #define MINUTEINMILLIS      60000     // 1 minute (in milliseconds)
-#define HOURINMILLIS        3600000   // 1 hour (in milliseconds)
-#define DAYINMILLIS         86400000  // 24 hours (in milliseconds)
+#define HOURINMILLIS        3600000   // 1 hour   (in milliseconds)
+#define DAYINMILLIS         86400000  // 1 day    (in milliseconds)
+#define WEEKINMILLIS        604800000 // 1 week   (in milliseconds)
 
 //menu item definitions
 #define UTCOFFSETMENUITEM   0
 #define LANGUAGEMENUITEM    1
 #define DATEVIEWMENUITEM    2
+#define SYNCHFREQUENCYMENUITEM 3
 
 //pin definitions
 #define LED_PIN             0
@@ -102,7 +104,7 @@ static const String initphase[4] = {
 };
 static const String searchphase[2] = {
   "SearchingDevices",
-  "-v-^-v-^-v-^-v-^",
+  "                ",
 };
 
 int initcount = 0;
@@ -200,11 +202,11 @@ static const String dayOfWeek[5][7] = {{"Sun","Mon","Tue","Wed","Thu","Fri","Sat
 
 static const String settingsMenu[5] = {"SETTINGS","IMPOSTAZIONI","AJUSTES","PARAMETRES","EINSTELLUNGEN"};
 
-static const String settingsMenuItems[5][3] = {{"UTC OFFSET","LANGUAGE","DATE VIEW"},
-{"OFFSET UTC","LINGUA","VISTA DATA"},
-{"OFFSET UTC","IDIOMA","VISTA FECHA"},
-{"OFFSET UTC","LANGUE","VUE DATE"},
-{"OFFSET UTC","SPRACHE","ANZEIGEN DATUM"}};
+static const String settingsMenuItems[5][4] = {{"UTC OFFSET","LANGUAGE","DATE VIEW","SYNC FREQUENCY"},
+{"OFFSET UTC","LINGUA","VISTA DATA","FREQUENZA SYNC"},
+{"OFFSET UTC","IDIOMA","VISTA FECHA","FRECUENCIA SYNC"},
+{"OFFSET UTC","LANGUE","VUE DATE","FREQUENCE SYNC"},
+{"OFFSET UTC","SPRACHE","ANZEIGEN DATUM","FREQUENZ SYNC"}};
 
 static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
 
@@ -216,6 +218,11 @@ static const String dateViewValues[5][2] = {{"String","Number"},
 {"Chaine","Nombre"},
 {"String","Zahl"}};
 
+static const String frequencyValues[5][5] = {{"once a second","once a minute","once every hour","once a day","once a week"},
+{"ogni secondo","ogni minuto","ogni ora","ogni giorno","ogni settimana"},
+{"cada segundo","cada minuto","cada hora","cada dia","cada semana"},
+{"chaque seconde","chaque minute","chaque heur","chaque jour","chaque semaine"},
+{"jede sekunde","jede minute","jede stunde","jede tag","jede woche"}};
 
 void setup() {
   //wdt_disable();
@@ -240,7 +247,7 @@ void setup() {
   //we will be displaying our strings in English for our own test phase
   //supported locales are ENG, ITA, ESP, FRA, DEU
   currentLocale = ENG; 
-  offsetUTC = 1;
+  offsetUTC = 99;
   
   //initialize lcd display
   lcd.begin(16, 2);
@@ -250,8 +257,7 @@ void setup() {
   //lcd.print("ddd dd/mm/yyyy");
 
   tickEvent   = t.every(1000,       updateClock);
-  firstSynch  = t.after(1100,         synchTime);
-  synchEvent  = t.every(SECONDINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+  synchEvent  = t.every(MINUTEINMILLIS,  synchTime);   // DEFAULT TO EVERY MINUTE...
   chronometerEvent = t.every(50,    chronometer);
 
   MENUBUTTONSTATE = LOW;
@@ -283,6 +289,19 @@ void setup() {
 void loop() {
   
   t.update();
+
+  //Listen for changes in program state, useful for one time operations within the loop
+  if(OLDPROGRAMSTATE != CURRENTPROGRAMSTATE){
+    PROGRAMSTATECHANGED = true;
+    OLDPROGRAMSTATE = CURRENTPROGRAMSTATE;
+  }
+  else{
+    PROGRAMSTATECHANGED = false;
+  }
+
+  if(PROGRAMSTATECHANGED && CURRENTPROGRAMSTATE == LISTENNMEA){
+    firstSynch  = t.after(1100,         synchTime);
+  }
 
   if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == INITIALSTATECHECK){
     HC05_STATE = Check_HC05_STATE();
@@ -681,10 +700,24 @@ boolean elaborateGPSValues(String myString){
   valueArray[0] = myString.substring(idxComma[0]+1, idxComma[1]);   //TIME
   valueArray[1] = myString.substring(idxComma[8]+1, idxComma[9]);   //DATE
   valueArray[2] = myString.substring(idxComma[2]+1, idxComma[3]);   //LATITUDE
-  valueArray[3] = myString.substring(idxComma[4]+1, idxComma[5]);   //LONGITUDE
+  valueArray[3] = myString.substring(idxComma[4]+1, idxComma[5]);   //LONGITUDE  
   valueArray[4] = myString.substring(idxComma[1]+1, idxComma[2]);   //STATUS OF FIX (ACTIVE OR VOID)
+  valueArray[5] = myString.substring(idxComma[5]+1, idxComma[6]);   //LONGITUDE E o W
   //valueArray[5] = myString.substring(idxComma[] ); //SIGNAL INTEGRITY
-
+  Serial.print("Longitude degrees are: ");
+  Serial.println(valueArray[3].substring(0,3).toInt());
+  int approxOffsetUTC = floor((valueArray[3].substring(0,3).toInt() + 7.5) / 15);
+  Serial.println("Longitude value is: " + valueArray[5]);
+  if(offsetUTC==99){
+    if(valueArray[5]=="E"){
+      offsetUTC = 0 + approxOffsetUTC;
+    }
+    if(valueArray[5]=="W"){
+      offsetUTC = 0 - approxOffsetUTC;
+    }
+    Serial.print("Approximate UTC time zone offset is: ");
+    Serial.println(offsetUTC);
+  }
 /*
   for(q=0;q<13;q++){
     if(q==0){ 
@@ -987,7 +1020,7 @@ void printMenu(){
       lcd.setCursor(0,0);  
       lcd.print(settingsMenu[currentLocale]);
 
-      MENUITEMS = 3;
+      MENUITEMS = 4;
       lcd.setCursor(0,1);
       lcd.print(">> "+settingsMenuItems[currentLocale][CURRENTMENUITEM]);      
     }  
@@ -999,7 +1032,7 @@ void printMenu(){
       if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
         MENUITEMS = 27;
         lcd.setCursor(0,1);
-        lcd.print(utcOffsetValues[CURRENTMENUITEM]);
+        lcd.print("UTC "+utcOffsetValues[CURRENTMENUITEM]);
       }
       else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
         MENUITEMS = 5;
@@ -1010,6 +1043,11 @@ void printMenu(){
         MENUITEMS = 2;
         lcd.setCursor(0,1);
         lcd.print(dateViewValues[currentLocale][CURRENTMENUITEM]);
+      }
+      else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
+        MENUITEMS = 5;
+        lcd.setCursor(0,1);
+        lcd.print(frequencyValues[currentLocale][CURRENTMENUITEM]);
       }
       
     }
@@ -1031,6 +1069,7 @@ void saveSettings(){
       if(utcOffsetValues[CURRENTMENUITEM].startsWith("+") || utcOffsetValues[CURRENTMENUITEM].startsWith("-")){
         String signVal = utcOffsetValues[CURRENTMENUITEM].substring(0,1);
         int numVal = utcOffsetValues[CURRENTMENUITEM].substring(1).toInt();
+        //Serial.println("utcOffsetValues[CURRENTMENUITEM] = " + utcOffsetValues[CURRENTMENUITEM]);
         //Serial.println("Split into sign = <"+signVal+"> and number = <"+numVal+">");
         if(signVal == "+"){
           offsetUTC = (0 + numVal);
@@ -1043,12 +1082,39 @@ void saveSettings(){
         Serial.println(">");
         synchTime();
       }
+      else if(utcOffsetValues[CURRENTMENUITEM] == "0"){
+        offsetUTC = utcOffsetValues[CURRENTMENUITEM].toInt();
+        Serial.print("offsetUTC now has value <");
+        Serial.print(offsetUTC);
+        Serial.println(">");
+        synchTime();
+      }
     }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
       currentLocale = (LOCALE)CURRENTMENUITEM;
     }
     else if(PREVIOUSMENUITEM == DATEVIEWMENUITEM){
       useLangStrings = CURRENTMENUITEM==0?true:false;
+    }
+    else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
+      t.stop(synchEvent);
+      switch(CURRENTMENUITEM){
+        case 0:
+          synchEvent  = t.every(SECONDINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          break;
+        case 1:
+          synchEvent  = t.every(MINUTEINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          break;
+        case 2:
+          synchEvent  = t.every(HOURINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          break;
+        case 3:
+          synchEvent  = t.every(DAYINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          break;
+        case 4:
+          synchEvent  = t.every(WEEKINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          break;
+      }
     }
 }
 
