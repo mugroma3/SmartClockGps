@@ -14,7 +14,7 @@
  * A project of the Microcontrollers Users Group - Roma Tre University
  * MUG UniRoma3 http://muglab.uniroma3.it/
  * 
- *     
+ * TODO: implement EEPROM memory to store user preferences
  */
 
 #include <LiquidCrystal.h>
@@ -22,7 +22,7 @@
 #include "SmartClock.h"
 
 //module max inquire devices, can change to optimize HC-05 connectivity
-#define MAX_DEVICES   15
+#define MAX_DEVICES         15
 
 //time definitions
 #define SECONDINMILLIS      1000      // 1 second (in milliseconds)
@@ -59,8 +59,14 @@ LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5
 //instantiate the timer object
 Timer t;
 int dynamicEvent;
+int tickEvent;                      // event that will be called once every second to create the local Arduino clock
+int firstSynch;                     // event that will be called once after 1 second to synch the local Arduino clock with GPS time data
+int synchEvent;                     // event that will be called once every so often to synch the local Arduino clock with GPS time data
+int chronometerEvent;               // event that will be called once every 50 milliseconds as a chronometer function
 
-// define static variables, will never change (held in Flash memory instead of RAM)
+/*  Define Static String Constants
+ *  Messages variables that don't change during program runtime
+ */
 static const String HC05_ERRORMESSAGE[29] = {
   "Command Error/Invalid Command",
   "Results in default value",
@@ -148,70 +154,68 @@ static const String frequencyValues[5][5] = {{"once a second","once a minute","o
 {"chaque seconde","chaque minute","chaque heur","chaque jour","chaque semaine"},
 {"jede sekunde","jede minute","jede stunde","jede tag","jede woche"}};
 
-int initcount;
-int searchcount;
+/**********************************************************************
+ * Define Program Level Global variables 
+ * (not user changeable, only the program can change their value) 
+ * held in RAM memory
+ * ********************************************************************
+*/
 
 ProgramState OLDPROGRAMSTATE;
 ProgramState CURRENTPROGRAMSTATE;
 boolean PROGRAMSTATECHANGED;
-
 boolean SETTINGHC05MODE;
 boolean INITIALIZING;
 
-HC05MODE HC05_MODE;             //can be AT_MODE or COMMUNICATION_MODE
-HC05CMODE currentCMODE;         //can be CONNECT_BOUND, CONNECT_ANY, or CONNECT_SLAVE_LOOP
-HC05STATE HC05_STATE;           //can be CONNECTED or DISCONNECTED
-HC05STATE HC05_OLDSTATE;        //can be CONNECTED or DISCONNECTED
-LOCALE currentLocale;           //can be ENG, ITA, ESP, FRA, DEU
+HC05MODE HC05_MODE;                   //can be AT_MODE or COMMUNICATION_MODE
+HC05CMODE currentCMODE;               //can be CONNECT_BOUND, CONNECT_ANY, or CONNECT_SLAVE_LOOP
+HC05STATE HC05_STATE;                 //can be CONNECTED or DISCONNECTED
+HC05STATE HC05_OLDSTATE;              //can be CONNECTED or DISCONNECTED
 
+LOCALE currentLocale;                 //can be ENG, ITA, ESP, FRA, DEU
+BASEMENU BaseMenu;                    //can be CLOCK, CHRONOMETER, GPSDATA
+int CURRENTMENUITEM;                  //declaring as int rather than MENUITEM so that we can iterate over the items
+int PREVIOUSMENUITEM;                 //declaring as int rather than MENUITEM so that we can iterate over the items
+boolean MENUACTIVE;                   //whether user has entered into main menu
+int MENULEVEL;                        //current level within main menu
+int MENUITEMS;                        //item count in current menu level
+int initcount;                        //for iterating over initphase strings
+int searchcount;                      //for iterating over searchphase and and linkphase strings
 
-// define user changeable globals (held in RAM memory)
-String devices[MAX_DEVICES];
-int currentDeviceIdx;
-int recentDeviceCount;
-int deviceCount;
-String currentDeviceAddr;
-String currentDeviceName;
+String devices[MAX_DEVICES];          //array of device addresses
+int deviceCount;                      //total device addresses found
+int currentDeviceIdx;                 //index of iteration through device addresses
+String currentDeviceAddr;             //address of device at current index
+String currentDeviceName;             //name of device at current index
+int recentDeviceCount;                //result of recent paired devices count request
+int currentFunctionStep;              //SetHC05Mode function has different steps
+String incoming;                      //for reading incoming Serial data (from HC-05 module to Serial monitor)
+String outgoing;                      //outgoing Serial data (from user / Serial monitor to HC-05 module)
+String GPSCommandString;              //the string that will hold the incoming GPS data stream (one line at a time)
+int currentYear;                      //used for creating clock date-time
+int currentMonth;                     //used for creating clock date-time
+int currentDay;                       //used for creating clock date-time
+int currentHour;                      //used for creating clock date-time
+int currentMinute;                    //used for creating clock date-time
+int currentSecond;                    //used for creating clock date-time
+String timeString;                    //final string of the time to display on the LCD
+String dateString;                    //final string of the data to display on the LCD
 
-int currentFunctionStep;
+unsigned long currentMillis;          //will count the current milliseconds of the Arduino when the chronometer function is activated
+unsigned long oldtime;                //useful for filtering button press
+unsigned long newtime;                //useful for filtering button press
+int MENUBUTTONSTATE;                  //button state LOW / HIGH
+int NAVIGATEBUTTONSTATE;              //button state LOW / HIGH
+boolean MENUBUTTONPRESSED;            //button press event
+boolean NAVIGATEBUTTONPRESSED;        //button press event
 
-String incoming;
-String outgoing;
-
+/****************************************
+ * Define User Preference globals (held in RAM memory)
+ * TODO: should be stored in EEPROM!
+ ****************************************
+ */
 int offsetUTC;
 boolean useLangStrings;
-
-
-// define global variables (not user changeable, only the program can change their value) held in RAM memory
-String GPSCommandString;              // the string that will hold the incoming GPS data stream (one line at a time)
-//unsigned long currentTime;          // will hold the Arduino millis()
-int currentYear;
-int currentMonth;
-int currentDay;
-int currentHour;
-int currentMinute;
-int currentSecond;
-
-int tickEvent;                      // event that will be called once every second to create the local Arduino clock
-int firstSynch;                     // event that will be called once after 1 second to synch the local Arduino clock with GPS time data
-int synchEvent;                     // event that will be called once every 24 hours to synch the local Arduino clock with GPS time data
-int chronometerEvent;               // event that will be called once every 50 milliseconds as a chronometer function
-String timeString;                  // final string of the time to display on the LCD
-String dateString;                  // final string of the data to display on the LCD
-unsigned long currentMillis;        // will count the current milliseconds of the Arduino when the chronometer function is activated
-
-unsigned long oldtime; //useful for filtering button press
-unsigned long newtime; //useful for filtering button press
-int MENUBUTTONSTATE;
-int NAVIGATEBUTTONSTATE;
-boolean MENUBUTTONPRESSED;
-boolean NAVIGATEBUTTONPRESSED;
-
-int CURRENTMENUITEM; //declaring as int rather than MENUITEM so that we can iterate over the items
-int PREVIOUSMENUITEM; //declaring as int rather than MENUITEM so that we can iterate over the items
-boolean MENUACTIVE;
-int MENULEVEL;
-int MENUITEMS;
 
 
 void setup() {
@@ -235,56 +239,18 @@ void setup() {
   while(!Serial1){} //wait until Serial1 is ready
   //Serial.println("HC-05 serial is ready too!");
 
-  //we will be displaying our strings in English for our own test phase
-  //supported locales are ENG, ITA, ESP, FRA, DEU
-  currentLocale = ENG; 
-  offsetUTC = 99; //initial out of bounds value, kind of like an uninitialized null value
-  
   //initialize lcd display
   lcd.begin(16, 2);
   lcd.setCursor(0,0);
   lcd.print(" SmartClock GPS ");
   lcd.setCursor(0,1);
-  lcd.print("A hell of a time");
+  lcd.print("*hell of a time*");
 
   tickEvent   = t.every(1000,       updateClock);
   synchEvent  = t.every(MINUTEINMILLIS,  synchTime);   // DEFAULT TO EVERY MINUTE...
   chronometerEvent = t.every(50,    chronometer);
 
-  MENUBUTTONSTATE = LOW;
-  NAVIGATEBUTTONSTATE = LOW;
-  MENUBUTTONPRESSED = false;
-  NAVIGATEBUTTONPRESSED = false;
-
-  MENUACTIVE = false;
-  MENULEVEL = 0;
-  CURRENTMENUITEM = UTCOFFSETMENUITEM;
-  PREVIOUSMENUITEM = UTCOFFSETMENUITEM;
-
-  currentYear = 0;
-  currentMonth = 0;
-  currentDay = 0;
-  currentHour = 0;
-  currentMinute = 0;
-  currentSecond = 0;
-
-  useLangStrings = true;
-
-  initcount = 0;
-  searchcount = 0;
-
-  currentFunctionStep = 0;
-
-  currentDeviceIdx = 0;
-  recentDeviceCount = 0;
-  deviceCount = 0;
-  
-  SETTINGHC05MODE = false;
-  INITIALIZING = false;
-  CURRENTPROGRAMSTATE = INITIALSTATECHECK;
-
-  //Start the HC-05 module in communication mode
-  HC05_MODE = COMMUNICATION_MODE;  
+  initializeAllVariables();
   
   //LET'S GET THIS PARTY STARTED!
   //Set_HC05_MODE function uses HC05_MODE global instead of sending the mode in as a parameter,
@@ -302,6 +268,9 @@ void loop() {
   
   t.update();
 
+  //digitalWrite(LED_PIN, (int)HC05_STATE);
+  digitalWrite(LED_PIN, digitalRead(HC05_STATE_PIN));
+  
   //Listen for changes in program state, useful for one time operations within the loop
   if(OLDPROGRAMSTATE != CURRENTPROGRAMSTATE){
     PROGRAMSTATECHANGED = true;
@@ -319,7 +288,7 @@ void loop() {
     HC05_STATE = Check_HC05_STATE();
     if(HC05_STATE == CONNECTED){
       lcd.setCursor(0,1);
-      lcd.print("LINKED TO GPS!  ");
+      lcd.print(">LINKED TO GPS!<");
       Serial.println("HC-05 is connected and is now listening for NMEA data...");
       CURRENTPROGRAMSTATE = LISTENNMEA;
     }
@@ -555,7 +524,7 @@ void loop() {
               Serial.println("Would you like to connect to '" + currentDeviceName + "'? Please type Y or N.");
               lcd.clear();
               lcd.setCursor(0,0);
-              lcd.print(" ConnectDevice? ");
+              lcd.print("Connect Device? ");
               lcd.setCursor(0,1);
               lcd.print("Y");
               int devNameLen = currentDeviceName.length();
@@ -839,11 +808,19 @@ void updateClock()
     }
   }
   
-  if(CURRENTPROGRAMSTATE == LISTENNMEA && MENUACTIVE==false){
-    lcd.setCursor(0,0);
-    lcd.print(timeString);
-    lcd.setCursor(0,1);
-    lcd.print(dateString);
+  if(CURRENTPROGRAMSTATE == LISTENNMEA){
+    if(BaseMenu == CLOCK && MENUACTIVE==false){
+      lcd.setCursor(0,0);
+      lcd.print(timeString);
+      lcd.setCursor(0,1);
+      lcd.print(dateString);
+    }
+    else if(BaseMenu == CHRONOMETER){
+      
+    }
+    else if(BaseMenu == GPSDATA){
+      
+    }
   }
   else if(SETTINGHC05MODE == true || (CURRENTPROGRAMSTATE == INITIALSTATECHECK || CURRENTPROGRAMSTATE == DO_ADCN)){
     lcd.setCursor(0,0);
@@ -874,8 +851,13 @@ void updateClock()
 void synchTime(){
   if(CURRENTPROGRAMSTATE == LISTENNMEA){
     boolean updatedInfo = elaborateGPSValues(GPSCommandString);
+    //TODO: if updatedInfo is false, perhaps set another one-time synch in 1 min?
+    //and perhaps turn on a warning LED?
+    if(updatedInfo){
+      t.pulse(LED_PIN,10*60*1000,HIGH);
+    };
   }
-  //if not updatedInfo, perhaps set another one-time synch in 1 min?
+  
 }
 
 
@@ -951,6 +933,8 @@ void checkButtonsPressed(){
     NAVIGATEBUTTONPRESSED = false;
   }
 
+  //what to do if buttons have been pressed
+  //will depend on current state
   if(CURRENTPROGRAMSTATE == CONFRONTINGUSER){
     if(MENUBUTTONPRESSED){
       MENUBUTTONPRESSED = false;
@@ -982,33 +966,51 @@ void checkButtonsPressed(){
       }      
     }
   }
-  else{
-    if(MENUBUTTONPRESSED && MENUACTIVE == false){
-      MENUBUTTONPRESSED = false;
-      MENUACTIVE = true; //will stay true until a final menu selection has taken place
-      lcd.clear();
-    }
-    else if(MENUBUTTONPRESSED && MENUACTIVE == true){
-      MENUBUTTONPRESSED = false;
-      if(MENULEVEL == 0){
-        PREVIOUSMENUITEM = CURRENTMENUITEM;
-        CURRENTMENUITEM = UTCOFFSETMENUITEM;
-        MENULEVEL++;
+  else if(CURRENTPROGRAMSTATE == LISTENNMEA){
+    if(BaseMenu == CLOCK){
+      if(MENUBUTTONPRESSED){
+        MENUBUTTONPRESSED = false;
+        if(MENUACTIVE == false){
+          MENUACTIVE = true; //will stay true until a final menu selection has taken place
+        }
+        else if(MENUACTIVE == true){
+          if(MENULEVEL == 0){
+            PREVIOUSMENUITEM = CURRENTMENUITEM;
+            CURRENTMENUITEM = UTCOFFSETMENUITEM;
+            MENULEVEL++;
+          }
+          else{
+            saveSettings();
+            resetAndExitMenu();
+          }
+        }
         lcd.clear();
       }
-      else{
-        saveSettings();
-        resetAndExitMenu();
-        lcd.clear();
+    
+      if(NAVIGATEBUTTONPRESSED){
+        NAVIGATEBUTTONPRESSED = false;
+        if(MENUACTIVE){
+          CURRENTMENUITEM++;
+          if((int)CURRENTMENUITEM >= MENUITEMS){
+            CURRENTMENUITEM = UTCOFFSETMENUITEM;
+          }
+        }
+        else{
+          BaseMenu = CHRONOMETER;
+        }
       }
     }
-  
-    if(NAVIGATEBUTTONPRESSED && MENUACTIVE){
-      NAVIGATEBUTTONPRESSED = false;
-      CURRENTMENUITEM++;
-      if((int)CURRENTMENUITEM >= MENUITEMS){
-        CURRENTMENUITEM = UTCOFFSETMENUITEM;
-      }
+    else if(BaseMenu == CHRONOMETER){
+      if(NAVIGATEBUTTONPRESSED){
+        NAVIGATEBUTTONPRESSED = false;
+        BaseMenu = GPSDATA;
+      }      
+    }
+    else if(BaseMenu == GPSDATA){
+      if(NAVIGATEBUTTONPRESSED){
+        NAVIGATEBUTTONPRESSED = false;
+        BaseMenu = CLOCK;
+      }            
     }
   }
   //CHRONOMETER FUNCTION BUTTON
@@ -1393,6 +1395,48 @@ void flushOkString(){
     String okstring = char(inc2) + Serial1.readStringUntil('\n');
     Serial.println(okstring);
   }  
+}
+
+void initializeAllVariables(){  
+  currentLocale = ENG; //supported locales are ENG, ITA, ESP, FRA, DEU
+  offsetUTC = 99; //initial out of bounds value, kind of like an uninitialized null value
+
+  MENUBUTTONSTATE = LOW;
+  NAVIGATEBUTTONSTATE = LOW;
+  MENUBUTTONPRESSED = false;
+  NAVIGATEBUTTONPRESSED = false;
+
+  MENUACTIVE = false;
+  MENULEVEL = 0;
+  CURRENTMENUITEM = UTCOFFSETMENUITEM;
+  PREVIOUSMENUITEM = UTCOFFSETMENUITEM;
+  BaseMenu = CLOCK;
+
+  currentYear = 0;
+  currentMonth = 0;
+  currentDay = 0;
+  currentHour = 0;
+  currentMinute = 0;
+  currentSecond = 0;
+
+  useLangStrings = true;
+
+  initcount = 0;
+  searchcount = 0;
+
+  currentFunctionStep = 0;
+
+  currentDeviceIdx = 0;
+  recentDeviceCount = 0;
+  deviceCount = 0;
+  
+  SETTINGHC05MODE = false;
+  INITIALIZING = false;
+  CURRENTPROGRAMSTATE = INITIALSTATECHECK;
+
+  //Start the HC-05 module in communication mode
+  HC05_MODE = COMMUNICATION_MODE;  
+  HC05_STATE = DISCONNECTED;
 }
 
 void resetAllVariables(){
