@@ -45,9 +45,9 @@
 #define LCD_D7              31
 #define MENUBUTTON          19
 #define NAVIGATEBUTTON      18
-#define HC05_STATE_PIN      12  //hc-05 state digital pin
-#define HC05_KEY_PIN        13  //hc-05 key digital pin
-#define HC05_EN_PIN         14  //hc-05 enable digital pin
+#define HC05_STATE_PIN      12  
+#define HC05_KEY_PIN        13  
+#define HC05_EN_PIN         14  
 
 //initialize the display library with the numbers of the interface pins
 //LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
@@ -171,6 +171,7 @@ HC05MODE HC05_MODE;                   //can be AT_MODE or COMMUNICATION_MODE
 HC05CMODE currentCMODE;               //can be CONNECT_BOUND, CONNECT_ANY, or CONNECT_SLAVE_LOOP
 HC05STATE HC05_STATE;                 //can be CONNECTED or DISCONNECTED
 HC05STATE HC05_OLDSTATE;              //can be CONNECTED or DISCONNECTED
+CHRONOSTATE ChronoState;              //can be CHRONOINIT, CHRONORUNNING or CHRONOSTOPPED
 
 LOCALE currentLocale;                 //can be ENG, ITA, ESP, FRA, DEU
 BASEMENU BaseMenu;                    //can be CLOCK, CHRONOMETER, GPSDATA
@@ -246,9 +247,9 @@ void setup() {
   lcd.setCursor(0,1);
   lcd.print("*hell of a time*");
 
-  tickEvent   = t.every(1000,       updateClock);
-  synchEvent  = t.every(MINUTEINMILLIS,  synchTime);   // DEFAULT TO EVERY MINUTE...
-  chronometerEvent = t.every(50,    chronometer);
+  tickEvent         = t.every(1000,           updateClock);
+  synchEvent        = t.every(MINUTEINMILLIS,   synchTime);   // DEFAULT TO EVERY MINUTE...
+  chronometerEvent  = t.every(50,             chronometer);
 
   initializeAllVariables();
   
@@ -815,9 +816,6 @@ void updateClock()
       lcd.setCursor(0,1);
       lcd.print(dateString);
     }
-    else if(BaseMenu == CHRONOMETER){
-      
-    }
     else if(BaseMenu == GPSDATA){
       
     }
@@ -997,14 +995,33 @@ void checkButtonsPressed(){
         }
         else{
           BaseMenu = CHRONOMETER;
+          lcd.setCursor(0,0);
+          lcd.print("***CHRONOMETER**");
+          lcd.setCursor(0,1);
+          lcd.print("00:00:00.000");
         }
       }
     }
     else if(BaseMenu == CHRONOMETER){
       if(NAVIGATEBUTTONPRESSED){
         NAVIGATEBUTTONPRESSED = false;
+        ChronoState = CHRONOINIT;
         BaseMenu = GPSDATA;
       }      
+      if(MENUBUTTONPRESSED){
+        if(ChronoState == CHRONOINIT){
+          currentMillis = millis();
+          ChronoState = CHRONORUNNING;
+        }
+        else if(ChronoState == CHRONORUNNING){
+          ChronoState = CHRONOSTOPPED;
+        }
+        else if(ChronoState == CHRONOSTOPPED){
+          ChronoState = CHRONOINIT;
+          lcd.setCursor(0,1);
+          lcd.print("00:00:00.000");
+        }
+      }
     }
     else if(BaseMenu == GPSDATA){
       if(NAVIGATEBUTTONPRESSED){
@@ -1013,12 +1030,6 @@ void checkButtonsPressed(){
       }            
     }
   }
-  //CHRONOMETER FUNCTION BUTTON
-  //IF CHRONOMETER PRESSED, THEN {
-  //currentMillis = millis();
-  //lcd.clear();
-  //chronometer();
-  //}
 }
 
 
@@ -1161,6 +1172,9 @@ void chronometer(){
   
   unsigned long currentTime = millis() - currentMillis;
   
+  int msecs = round(currentTime / 10);
+  if(msecs>999){ msecs = msecs - (1000 * (msecs / 1000)); }
+  
   int seconds = round(currentTime / 1000);  
   if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
   
@@ -1170,19 +1184,31 @@ void chronometer(){
   int hours = round(currentTime / 1000 / 60 / 60);
   if(hours>23){ hours = hours - (24 * (hours / 24)); }
   
-  int days = round(currentTime / 1000 / 60 / 60 / 24);
-  if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
+  //int days = round(currentTime / 1000 / 60 / 60 / 24);
+  //if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
   
-  int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
-  if(months>11){ months = months - (12 * (months / 12)); }
+  //int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
+  //if(months>11){ months = months - (12 * (months / 12)); }
   
-  int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
+  //int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
   
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds));
-  String ddString = (days<10?"0"+String(days):String(days));
-  String mmString = (months<10?"0"+String(months):String(months));
-  String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
+  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds)) + "." + (String)msecs;
+  //String ddString = (days<10?"0"+String(days):String(days));
+  //String mmString = (months<10?"0"+String(months):String(months));
+  //String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
   
+  if(CURRENTPROGRAMSTATE == LISTENNMEA && BaseMenu == CHRONOMETER){
+    if(ChronoState == CHRONORUNNING){
+      lcd.setCursor(0,1);
+      lcd.print(timeString);
+    }
+    else if(ChronoState == CHRONOSTOPPED){
+      
+    }
+    else if(ChronoState == CHRONOINIT){
+      
+    }
+  }
   //lcd print only milliseconds if second has not yet changed...
   //lcd print seconds and milliseconds when second has changed...
   //lcd print minutes, seconds, and milliseconds when minute has changed...
@@ -1437,6 +1463,8 @@ void initializeAllVariables(){
   //Start the HC-05 module in communication mode
   HC05_MODE = COMMUNICATION_MODE;  
   HC05_STATE = DISCONNECTED;
+
+  ChronoState = CHRONOINIT;
 }
 
 void resetAllVariables(){
