@@ -154,6 +154,21 @@ static const String frequencyValues[5][5] = {{"once a second","once a minute","o
 {"chaque seconde","chaque minute","chaque heur","chaque jour","chaque semaine"},
 {"jede sekunde","jede minute","jede stunde","jede tag","jede woche"}};
 
+static const String SIGNALINTEGRITY[5][2] = {
+  {"A", "autonomous"},
+  {"D", "differential"},
+  {"E", "estimated"},
+  {"N", "not valid"},
+  {"S", "simulator"}
+};
+static const String GPSFIXSTATUS[2][2] = {
+  {"A", "Active"},
+  {"V", "Void"}
+};
+
+static const String GPSDataStrings[7] = {"STATUS","LAT","LNG","SPEED","TRACK","MagnVAR","SIGNAL"};
+String GPSValueStrings[7];
+
 /**********************************************************************
  * Define Program Level Global variables 
  * (not user changeable, only the program can change their value) 
@@ -201,6 +216,7 @@ int currentMinute;                    //used for creating clock date-time
 int currentSecond;                    //used for creating clock date-time
 String timeString;                    //final string of the time to display on the LCD
 String dateString;                    //final string of the data to display on the LCD
+int GPSDataCounter;                   //GPS DATA
 
 unsigned long currentMillis;          //will count the current milliseconds of the Arduino when the chronometer function is activated
 unsigned long oldtime;                //useful for filtering button press
@@ -663,6 +679,7 @@ void loop() {
 */
 //TODO: double check whether time / date data is correct even when Fix Status = V (void)
 //TODO: double check also whether time / date data is valid when signal integrity != A and !=D
+
 boolean elaborateGPSValues(String myString){
   
   int hours,minutes,seconds,day,month,year;  
@@ -677,18 +694,30 @@ boolean elaborateGPSValues(String myString){
     else{ idxComma[p] = myString.indexOf(',', idxComma[p-1]+1); }
   }
 
-  String valueArray[6];  
-  valueArray[0] = myString.substring(idxComma[0]+1, idxComma[1]);   //TIME
-  valueArray[1] = myString.substring(idxComma[8]+1, idxComma[9]);   //DATE
-  valueArray[2] = myString.substring(idxComma[2]+1, idxComma[3]);   //LATITUDE
-  valueArray[3] = myString.substring(idxComma[4]+1, idxComma[5]);   //LONGITUDE  
-  valueArray[4] = myString.substring(idxComma[1]+1, idxComma[2]);   //STATUS OF FIX (ACTIVE OR VOID)
-  valueArray[5] = myString.substring(idxComma[5]+1, idxComma[6]);   //LONGITUDE E o W
-  //valueArray[5] = myString.substring(idxComma[] ); //SIGNAL INTEGRITY
-  Serial.print("Longitude degrees are: ");
-  Serial.println(valueArray[3].substring(0,3).toInt());
-  int approxOffsetUTC = floor((valueArray[3].substring(0,3).toInt() + 7.5) / 15);
-  Serial.println("Longitude value is: " + valueArray[5]);
+  String valueArray[13];  
+  valueArray[0]   = myString.substring(idxComma[0]+1,   idxComma[1]);           //TIME
+  valueArray[1]   = myString.substring(idxComma[1]+1,   idxComma[2]);           //STATUS OF FIX (ACTIVE OR VOID)
+  valueArray[2]   = myString.substring(idxComma[2]+1,   idxComma[3]);           //LATITUDE
+  valueArray[3]   = myString.substring(idxComma[3]+1,   idxComma[4]);           //LATITUDE N o S  
+  valueArray[4]   = myString.substring(idxComma[4]+1,   idxComma[5]);           //LONGITUDE  
+  valueArray[5]   = myString.substring(idxComma[5]+1,   idxComma[6]);           //LONGITUDE E o W
+  valueArray[6]   = myString.substring(idxComma[6]+1,   idxComma[7]);           //SPEED OVER THE GROUND IN KNOTS
+  valueArray[7]   = myString.substring(idxComma[7]+1,   idxComma[8]);           //TRACK ANGLE IN DEGREES
+  valueArray[8]   = myString.substring(idxComma[8]+1,   idxComma[9]);           //DATE
+  valueArray[9]   = myString.substring(idxComma[9]+1,   idxComma[10]);          //MAGNETIC VARIATION
+  valueArray[10]  = myString.substring(idxComma[10]+1,  idxComma[11]);          //MAGNETIC VARIATION E o W
+  valueArray[11]  = myString.substring(idxComma[11]+1,  myString.indexOf('*')); //SIGNAL QUALITY
+  valueArray[12]  = myString.substring(myString.indexOf('*')+1);                //CHECKSUM
+  
+  GPSValueStrings[0] = MapValue(valueArray[1],GPSFIXSTATUS,2);
+  GPSValueStrings[1] = (String)valueArray[2].substring(0,2).toInt() + "'" + valueArray[2].substring(2) + "\" " + valueArray[3];
+  GPSValueStrings[2] = (String)valueArray[4].substring(0,3).toInt() + "'" + valueArray[2].substring(3) + "\"" + valueArray[5];
+  GPSValueStrings[3] = valueArray[6];
+  GPSValueStrings[4] = valueArray[7] + "°";
+  GPSValueStrings[5] = valueArray[9] + "° " + valueArray[10];
+  GPSValueStrings[6] = MapValue(valueArray[11],SIGNALINTEGRITY,5);
+
+  int approxOffsetUTC = floor((valueArray[4].substring(0,3).toInt() + 7.5) / 15);
   if(offsetUTC==99){
     if(valueArray[5]=="E"){
       offsetUTC = 0 + approxOffsetUTC;
@@ -717,11 +746,59 @@ boolean elaborateGPSValues(String myString){
   currentMinute = valueArray[0].substring(2,4).toInt();
   currentSecond = valueArray[0].substring(4,6).toInt();
   
-  currentDay    = valueArray[1].substring(0,2).toInt();
-  currentMonth  = valueArray[1].substring(2,4).toInt();
-  currentYear   = valueArray[1].substring(4,6).toInt() + 2000;
+  currentDay    = valueArray[8].substring(0,2).toInt();
+  currentMonth  = valueArray[8].substring(2,4).toInt();
+  currentYear   = valueArray[8].substring(4,6).toInt() + 2000;
 
   return true; //perhaps if fix not valid, or signal integrity not A or D, return false?
+}
+
+
+/*********************************
+ * chronometer function
+ * *******************************
+ * is called every 50 milliseconds
+ */
+
+void chronometer(){
+  
+  unsigned long currentTime = millis() - currentMillis;
+  
+  int msecs = currentTime;
+  if(msecs>999){ msecs = msecs - (1000 * (msecs / 1000)); }
+  
+  int seconds = round(currentTime / 1000);  
+  if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
+  
+  int minutes = round(currentTime / 1000 / 60);  
+  if(minutes>59){ minutes = minutes - (60 * (minutes / 60)); }
+  
+  int hours = round(currentTime / 1000 / 60 / 60);
+  if(hours>23){ hours = hours - (24 * (hours / 24)); }
+  
+  //int days = round(currentTime / 1000 / 60 / 60 / 24);
+  //if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
+  
+  //int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
+  //if(months>11){ months = months - (12 * (months / 12)); }
+  
+  //int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
+  
+  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds)) + "." + (msecs<10?"00"+(String)msecs:(msecs<100?"0"+(String)msecs:(String)msecs));
+  //String ddString = (days<10?"0"+String(days):String(days));
+  //String mmString = (months<10?"0"+String(months):String(months));
+  //String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
+  
+  if(CURRENTPROGRAMSTATE == LISTENNMEA && BaseMenu == CHRONOMETER){
+    if(ChronoState == CHRONORUNNING){
+      lcd.setCursor(0,1);
+      lcd.print(timeString);
+    }
+  }
+  //lcd print only milliseconds if second has not yet changed...
+  //lcd print seconds and milliseconds when second has changed...
+  //lcd print minutes, seconds, and milliseconds when minute has changed...
+  //This way the screen will not flicker constantly
 }
 
 
@@ -817,7 +894,17 @@ void updateClock()
       lcd.print(dateString);
     }
     else if(BaseMenu == GPSDATA){
-      
+      GPSDataCounter++;
+      if((GPSDataCounter+3)%4==0){
+        int cnt = (GPSDataCounter+3) / 4;
+        if(cnt > 7){ cnt = 1; GPSDataCounter = 1; }
+        lcd.setCursor(0,1);
+        lcd.print(GPSDataStrings[cnt-1]+" "+GPSValueStrings[cnt-1]);
+      }
+      else if(GPSDataCounter%4==0){
+        lcd.setCursor(0,1);
+        lcd.print("                ");        
+      }
     }
   }
   else if(SETTINGHC05MODE == true || (CURRENTPROGRAMSTATE == INITIALSTATECHECK || CURRENTPROGRAMSTATE == DO_ADCN)){
@@ -1007,8 +1094,12 @@ void checkButtonsPressed(){
         NAVIGATEBUTTONPRESSED = false;
         ChronoState = CHRONOINIT;
         BaseMenu = GPSDATA;
+        lcd.setCursor(0,0);
+        lcd.print("*** GPS DATA ***");
+        GPSDataCounter = 0;
       }      
       if(MENUBUTTONPRESSED){
+        MENUBUTTONPRESSED = false;
         if(ChronoState == CHRONOINIT){
           currentMillis = millis();
           ChronoState = CHRONORUNNING;
@@ -1124,19 +1215,19 @@ void saveSettings(){
       t.stop(synchEvent);
       switch(CURRENTMENUITEM){
         case 0:
-          synchEvent  = t.every(SECONDINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          synchEvent  = t.every(SECONDINMILLIS, synchTime);   
           break;
         case 1:
-          synchEvent  = t.every(MINUTEINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          synchEvent  = t.every(MINUTEINMILLIS, synchTime);   
           break;
         case 2:
-          synchEvent  = t.every(HOURINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          synchEvent  = t.every(HOURINMILLIS,   synchTime);   
           break;
         case 3:
-          synchEvent  = t.every(DAYINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          synchEvent  = t.every(DAYINMILLIS,    synchTime);   
           break;
         case 4:
-          synchEvent  = t.every(WEEKINMILLIS,  synchTime);   // 86400000 millis = 24 hours
+          synchEvent  = t.every(WEEKINMILLIS,   synchTime);   
           break;
       }
     }
@@ -1160,59 +1251,6 @@ void resetAndExitMenu(){
     MENULEVEL = 0;
     MENUITEMS = 0;
     MENUACTIVE = false;
-}
-
-/*********************************
- * chronometer function
- * *******************************
- * is called every 50 milliseconds
- */
-
-void chronometer(){
-  
-  unsigned long currentTime = millis() - currentMillis;
-  
-  int msecs = round(currentTime / 10);
-  if(msecs>999){ msecs = msecs - (1000 * (msecs / 1000)); }
-  
-  int seconds = round(currentTime / 1000);  
-  if(seconds>59){ seconds = seconds - (60 * (seconds / 60)); }
-  
-  int minutes = round(currentTime / 1000 / 60);  
-  if(minutes>59){ minutes = minutes - (60 * (minutes / 60)); }
-  
-  int hours = round(currentTime / 1000 / 60 / 60);
-  if(hours>23){ hours = hours - (24 * (hours / 24)); }
-  
-  //int days = round(currentTime / 1000 / 60 / 60 / 24);
-  //if(days>29){ days = days - (30 * (days / 30)); } //approximation of 30 days to a month!
-  
-  //int months = round(currentTime / 1000 / 60 / 60 / 24 / 30);
-  //if(months>11){ months = months - (12 * (months / 12)); }
-  
-  //int years = round(currentTime / 1000 / 60 / 60 / 24 / 30 / 12);
-  
-  timeString = (hours<10?"0"+String(hours):String(hours)) + ":" + (minutes<10?"0"+String(minutes):String(minutes)) +  ":" + (seconds<10?"0"+String(seconds):String(seconds)) + "." + (String)msecs;
-  //String ddString = (days<10?"0"+String(days):String(days));
-  //String mmString = (months<10?"0"+String(months):String(months));
-  //String yyString = (years<10?"000"+String(years):(years<100?"00"+String(years):(years<1000?"0"+String(years):String(years))));
-  
-  if(CURRENTPROGRAMSTATE == LISTENNMEA && BaseMenu == CHRONOMETER){
-    if(ChronoState == CHRONORUNNING){
-      lcd.setCursor(0,1);
-      lcd.print(timeString);
-    }
-    else if(ChronoState == CHRONOSTOPPED){
-      
-    }
-    else if(ChronoState == CHRONOINIT){
-      
-    }
-  }
-  //lcd print only milliseconds if second has not yet changed...
-  //lcd print seconds and milliseconds when second has changed...
-  //lcd print minutes, seconds, and milliseconds when minute has changed...
-  //This way the screen will not flicker constantly
 }
 
 void Set_HC05_MODE(){
@@ -1465,6 +1503,7 @@ void initializeAllVariables(){
   HC05_STATE = DISCONNECTED;
 
   ChronoState = CHRONOINIT;
+  GPSDataCounter = 0;
 }
 
 void resetAllVariables(){
@@ -1501,6 +1540,22 @@ int inArray(String needle,String* haystack, int len){
   return index;
 }
 
+int knotsToMPH(int knots){
+  return knots * 1.15078;
+}
+
+int knotsToKMH(int knots){
+  return knots * 1.852;
+}
+
+String MapValue(String needle,const String haystack[][2],int len){
+  for(int i=0;i<len;++i){
+    if(haystack[i][0] == needle){
+      return haystack[i][1];
+    }
+  }
+  return "";
+}
 /*
  *  Copyright (c) 2016 John Romano D'Orazio (john.dorazio@cappellaniauniroma3.org)
  *  and Vincenzo d'Orso (icci87@gmail.com)
