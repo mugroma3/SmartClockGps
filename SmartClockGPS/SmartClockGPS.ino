@@ -14,11 +14,13 @@
  * A project of the Microcontrollers Users Group - Roma Tre University
  * MUG UniRoma3 http://muglab.uniroma3.it/
  * 
+ * Libraries:     Required the Timer library by JChristensen https://github.com/JChristensen/Timer/tree/v2.1
+ * 
  * TODO: implement EEPROM memory to store user preferences
  */
 
 #include <LiquidCrystal.h>
-#include "Timer.h"                     //http://github.com/JChristensen/Timer
+#include "Timer.h"                     //https://github.com/JChristensen/Timer/tree/v2.1
 #include "SmartClock.h"
 
 //module max inquire devices, can change to optimize HC-05 connectivity
@@ -263,9 +265,9 @@ void setup() {
   lcd.setCursor(0,1);
   lcd.print("*hell of a time*");
 
-  tickEvent         = t.every(1000,           updateClock);
-  synchEvent        = t.every(MINUTEINMILLIS,   synchTime);   // DEFAULT TO EVERY MINUTE...
-  chronometerEvent  = t.every(50,             chronometer);
+  tickEvent         = t.every(1000,           updateClock, (void*)0);
+  synchEvent        = t.every(MINUTEINMILLIS,   synchTime, (void*)0);   // DEFAULT TO EVERY MINUTE...
+  chronometerEvent  = t.every(50,             chronometer, (void*)0);
 
   initializeAllVariables();
   
@@ -273,7 +275,7 @@ void setup() {
   //Set_HC05_MODE function uses HC05_MODE global instead of sending the mode in as a parameter,
   //because this function is called in multiple steps by the timer object, as a callback,
   //making it complicated to handle parameters...
-  Set_HC05_MODE(); 
+  Set_HC05_MODE((void*)0); 
 
 }
 
@@ -298,7 +300,7 @@ void loop() {
   }
 
   if(PROGRAMSTATECHANGED && CURRENTPROGRAMSTATE == LISTENNMEA){
-    firstSynch  = t.after(1100,         synchTime);
+    firstSynch  = t.after(1100,         synchTime, (void*)0);
   }
 
   if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == INITIALSTATECHECK){
@@ -314,7 +316,7 @@ void loop() {
       lcd.print("NO LINK TO GPS..");
       Serial.println("HC-05 is not connected, so let's see what we can do about that.");
       HC05_MODE = AT_MODE;      
-      Set_HC05_MODE();
+      Set_HC05_MODE((void*)0);
     }
   }
   else if(SETTINGHC05MODE == false && CURRENTPROGRAMSTATE == DO_ADCN){
@@ -620,13 +622,13 @@ void loop() {
               Serial.println("Failed to connect to "+currentDeviceName + ". Resetting device...");
               resetAllVariables();
               HC05_MODE = AT_MODE;            
-              Set_HC05_MODE();
+              Set_HC05_MODE((void*)0);
             }
             else{
               Serial.println("Error attempting connection to "+currentDeviceName + ". Resetting device...");
               resetAllVariables();
               HC05_MODE = AT_MODE;            
-              Set_HC05_MODE();
+              Set_HC05_MODE((void*)0);
             }
             break;
           case LISTENNMEA:
@@ -760,7 +762,7 @@ boolean elaborateGPSValues(String myString){
  * is called every 50 milliseconds
  */
 
-void chronometer(){
+void chronometer(void* context){
   
   unsigned long currentTime = millis() - currentMillis;
   
@@ -810,7 +812,7 @@ void chronometer(){
  * this is the heart of the local Arduino clock
  * ********************
 */
-void updateClock()
+void updateClock(void* context)
 {
 
   currentSecond++;
@@ -933,7 +935,7 @@ void updateClock()
  * tries to get time values from GPS
  * if not succeeds, tries again?
 */
-void synchTime(){
+void synchTime(void* context){
   if(CURRENTPROGRAMSTATE == LISTENNMEA){
     boolean updatedInfo = elaborateGPSValues(GPSCommandString);
     //TODO: if updatedInfo is false, perhaps set another one-time synch in 1 min?
@@ -1195,14 +1197,14 @@ void saveSettings(){
         Serial.print("offsetUTC now has value <");
         Serial.print(offsetUTC);
         Serial.println(">");
-        synchTime();
+        synchTime((void*)0);
       }
       else if(utcOffsetValues[CURRENTMENUITEM] == "0"){
         offsetUTC = utcOffsetValues[CURRENTMENUITEM].toInt();
         Serial.print("offsetUTC now has value <");
         Serial.print(offsetUTC);
         Serial.println(">");
-        synchTime();
+        synchTime((void*)0);
       }
     }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
@@ -1215,19 +1217,19 @@ void saveSettings(){
       t.stop(synchEvent);
       switch(CURRENTMENUITEM){
         case 0:
-          synchEvent  = t.every(SECONDINMILLIS, synchTime);   
+          synchEvent  = t.every(SECONDINMILLIS, synchTime, (void*)0);   
           break;
         case 1:
-          synchEvent  = t.every(MINUTEINMILLIS, synchTime);   
+          synchEvent  = t.every(MINUTEINMILLIS, synchTime, (void*)0);   
           break;
         case 2:
-          synchEvent  = t.every(HOURINMILLIS,   synchTime);   
+          synchEvent  = t.every(HOURINMILLIS,   synchTime, (void*)0);   
           break;
         case 3:
-          synchEvent  = t.every(DAYINMILLIS,    synchTime);   
+          synchEvent  = t.every(DAYINMILLIS,    synchTime, (void*)0);   
           break;
         case 4:
-          synchEvent  = t.every(WEEKINMILLIS,   synchTime);   
+          synchEvent  = t.every(WEEKINMILLIS,   synchTime, (void*)0);   
           break;
       }
     }
@@ -1253,7 +1255,7 @@ void resetAndExitMenu(){
     MENUACTIVE = false;
 }
 
-void Set_HC05_MODE(){
+void Set_HC05_MODE(void* context){
   Serial.print(F("[currentFunctionStep = "));
   Serial.print(String(currentFunctionStep));
   Serial.println(F("]"));
@@ -1271,7 +1273,7 @@ void Set_HC05_MODE(){
     digitalWrite(HC05_EN_PIN, LOW); //EN to LOW = disable (pull low to reset when changing modes!)
     currentFunctionStep++;
     Serial.println("Preparing next step = " + (String)currentFunctionStep);
-    dynamicEvent = t.after(1000,Set_HC05_MODE);
+    dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);
   }
   else if(currentFunctionStep==1){
     Serial.print(F("HC05_MODE 0 o 1? >> "));
@@ -1285,17 +1287,17 @@ void Set_HC05_MODE(){
     Serial.println(F("Changed KEY pin state!"));
     currentFunctionStep++;
     Serial.println("Preparing next step = " + (String)currentFunctionStep);
-     dynamicEvent = t.after(1000,Set_HC05_MODE);
+     dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);
   }
   else if(currentFunctionStep==2){
     Serial.println(F("We have effectively entered step 2!"));
     digitalWrite(HC05_EN_PIN, HIGH); //EN to HIGH = enable
     currentFunctionStep++;
     if(HC05_MODE == AT_MODE){
-      dynamicEvent = t.after(2000,Set_HC05_MODE);
+      dynamicEvent = t.after(2000, Set_HC05_MODE, (void*)0);
     }
     else if(HC05_MODE == COMMUNICATION_MODE){
-      dynamicEvent = t.after(5000,Set_HC05_MODE);
+      dynamicEvent = t.after(5000, Set_HC05_MODE, (void*)0);
     }
   }
   else if(currentFunctionStep==3){
@@ -1304,7 +1306,7 @@ void Set_HC05_MODE(){
       INITIALIZING = true;
       Serial.println(F(">>AT+ROLE=1"));
       Serial1.println(F("AT+ROLE=1"));
-      dynamicEvent = t.after(1000,Set_HC05_MODE);
+      dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);
     }
     else if(HC05_MODE == COMMUNICATION_MODE){
       currentFunctionStep=0;    
@@ -1315,25 +1317,25 @@ void Set_HC05_MODE(){
     currentFunctionStep++;
     Serial.println(F(">>AT+CMODE=1"));
     Serial1.println(F("AT+CMODE=1"));
-    dynamicEvent = t.after(1000,Set_HC05_MODE);    
+    dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);    
   }
   else if(currentFunctionStep==5){
     currentFunctionStep++;
     Serial.println(F(">>AT+IPSCAN=1024,512,1024,512"));
     Serial1.println(F("AT+IPSCAN=1024,512,1024,512"));
-    dynamicEvent = t.after(1000,Set_HC05_MODE);        
+    dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);        
   }
   else if(currentFunctionStep==6){
     currentFunctionStep++;
     Serial.println(F(">>AT+INQM=1,15,12"));
     Serial1.println(F("AT+INQM=1,15,12"));
-    dynamicEvent = t.after(1000,Set_HC05_MODE);        
+    dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);        
   }
   else if(currentFunctionStep==7){
     currentFunctionStep++;
     Serial.println(F(">>AT+PSWD=0000"));
     Serial1.println(F("AT+PSWD=0000"));
-    dynamicEvent = t.after(1000,Set_HC05_MODE);        
+    dynamicEvent = t.after(1000, Set_HC05_MODE, (void*)0);        
   }
   else if(currentFunctionStep==8){
     currentFunctionStep=0;    
