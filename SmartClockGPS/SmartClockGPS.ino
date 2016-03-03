@@ -1050,7 +1050,7 @@ void checkButtonsPressed(){
         else{
           BaseMenu = CHRONOMETER;
           lcd.setCursor(0,0);
-          lcd.print("***CHRONOMETER**");
+          lcd.print(" " + chronometer[currentLocale] + " >");
           lcd.setCursor(0,1);
           lcd.print("00:00:00.000");
         }
