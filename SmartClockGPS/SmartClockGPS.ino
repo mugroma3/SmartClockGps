@@ -138,13 +138,16 @@ static const String dayOfWeek[5][7] = {{"Sun","Mon","Tue","Wed","Thu","Fri","Sat
 
 static const String settingsMenu[5] = {"SETTINGS","IMPOSTAZIONI","AJUSTES","PARAMETRES","EINSTELLUNGEN"};
 
-static const String settingsMenuItems[5][5] = {
-  {"UTC OFFSET","LANGUAGE","DATE VIEW","SYNC FREQUENCY","VERSION"},     //english
-  {"OFFSET UTC","LINGUA","VISTA DATA","FREQUENZA SYNC","VERSIONE"},     //italiano
-  {"OFFSET UTC","IDIOMA","VISTA FECHA","FRECUENCIA SYNC", "VERSION"},   //espanol
-  {"OFFSET UTC","LANGUE","VUE DATE","FREQUENCE SYNC", "VERSION"},       //francais
-  {"OFFSET UTC","SPRACHE","ANZEIGEN DATUM","FREQUENZ SYNC", "VERSION"}  //deutch
+static const int MainMenuItems = 5;
+static const String settingsMenuItems[5][MainMenuItems] = {
+  {"UTC OFFSET",  "LANGUAGE", "DATE VIEW",      "SYNC FREQUENCY",   "VERSION"}, //english
+  {"OFFSET UTC",  "LINGUA",   "VISTA DATA",     "FREQUENZA SYNC",   "VERSIONE"},//italiano
+  {"OFFSET UTC",  "IDIOMA",   "VISTA FECHA",    "FRECUENCIA SYNC",  "VERSION"}, //espanol
+  {"OFFSET UTC",  "LANGUE",   "VUE DATE",       "FREQUENCE SYNC",   "VERSION"}, //francais
+  {"OFFSET UTC",  "SPRACHE",  "ANZEIGEN DATUM", "FREQUENZ SYNC",    "VERSION"}  //deutch
 };
+
+static const String chronometer[5] = {"CHRONOMETER","CRONOMETRO","CRONOMETRO","CHRONOMETRE","CHRONOMETER"};
 
 static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
 
@@ -1099,7 +1102,7 @@ void printMenu(){
       lcd.setCursor(0,0);  
       lcd.print(settingsMenu[currentLocale]);
 
-      MENUITEMS = 5;
+      MENUITEMS = MainMenuItems;
       lcd.setCursor(0,1);
       lcd.print(">> "+settingsMenuItems[currentLocale][CURRENTMENUITEM]);      
     }  
