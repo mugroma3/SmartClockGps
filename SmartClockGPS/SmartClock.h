@@ -124,9 +124,10 @@ int addressIntDateView;
 int addressIntSynchFrequency;
 float addressFloatVersion;
 
+static const String HC05_ERRORMESSAGE[29];
+
 /****************************************
  * Define User Preference globals (held in RAM memory)
- * TODO: should be stored in EEPROM!
  ****************************************
  */
 int offsetUTC;
