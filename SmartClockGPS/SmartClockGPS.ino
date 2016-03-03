@@ -14,9 +14,9 @@
  * A project of the Microcontrollers Users Group - Roma Tre University
  * MUG UniRoma3 http://muglab.uniroma3.it/
  * 
- * Libraries:     Required the Timer library by JChristensen https://github.com/JChristensen/Timer/tree/v2.1
+ * Dependencies:  -> Timer library by JChristensen https://github.com/JChristensen/Timer/tree/v2.1
+ *                -> EEPROMex library
  * 
- * TODO: implement EEPROM memory to store user preferences
  */
 
 #include <LiquidCrystal.h>
@@ -689,7 +689,7 @@ boolean elaborateGPSValues(String myString){
     }
     Serial.print("Approximate UTC time zone offset is: ");
     Serial.println(offsetUTC);
-    EEPROM.writeInt(addressIntUTCOffset, offsetUTC);
+    EEPROM.updateInt(addressIntUTCOffset, offsetUTC);
     while(!EEPROM.isReady()){ delay(1); }
   }
 /*
@@ -1172,22 +1172,22 @@ void saveSettings(){
         Serial.println(">");
       }
       synchTime((void*)0);
-      EEPROM.writeInt(addressIntUTCOffset, CURRENTMENUITEM);
+      EEPROM.updateInt(addressIntUTCOffset, CURRENTMENUITEM);
       while(!EEPROM.isReady()){ delay(1); }
    }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
       currentLocale = (LOCALE)CURRENTMENUITEM;
-      EEPROM.writeInt(addressIntLanguage, CURRENTMENUITEM);
+      EEPROM.updateInt(addressIntLanguage, CURRENTMENUITEM);
       while(!EEPROM.isReady()){ delay(1); }
     }
     else if(PREVIOUSMENUITEM == DATEVIEWMENUITEM){
       useLangStrings = CURRENTMENUITEM==0?true:false;
-      EEPROM.writeInt(addressIntDateView, CURRENTMENUITEM);
+      EEPROM.updateInt(addressIntDateView, CURRENTMENUITEM);
       while(!EEPROM.isReady()){ delay(1); }      
     }
     else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
       t.stop(synchEvent);
-      EEPROM.writeInt(addressIntSynchFrequency, CURRENTMENUITEM);
+      EEPROM.updateInt(addressIntSynchFrequency, CURRENTMENUITEM);
       switch(CURRENTMENUITEM){
         case 0:
           synchEvent  = t.every(SECONDINMILLIS, synchTime, (void*)0);   
@@ -1443,7 +1443,13 @@ void initializeAllVariables(){
   //currentLocale = ENG; //supported locales are ENG, ITA, ESP, FRA, DEU
   currentLocale = static_cast<LOCALE>(EEPROM.readInt(addressIntLanguage));
   while(!EEPROM.isReady()){ delay(1); }
-  offsetUTC = EEPROM.readInt(addressIntUTCOffset); //initial out of bounds value, kind of like an uninitialized null value
+  int utc_offst = EEPROM.readInt(addressIntUTCOffset);
+  if(utc_offst==99){ //initial out of bounds value, kind of like an uninitialized null value
+    offsetUTC = utc_offst;
+  }
+  else{
+    offsetUTC = utcOffsetValues[utc_offst].toInt();
+  }
   while(!EEPROM.isReady()){ delay(1); }
   useLangStrings = (EEPROM.readInt(addressIntDateView) == 0 ? true : false);
   while(!EEPROM.isReady()){ delay(1); }
@@ -1542,7 +1548,7 @@ String MapValue(String needle,const String haystack[][2],int len){
 void initializeEEPROM(){
   // start reading from position memBase (address 0) of the EEPROM. Set maximumSize to EEPROMSizeUno 
   // Writes before membase or beyond EEPROMSizeUno will only give errors when _EEPROMEX_DEBUG is set
-  EEPROM.setMemPool(memBase, EEPROMSizeUno);
+  EEPROM.setMemPool(memBase, EEPROMSizeUno); //use EEPROMSizeATmega1280 if you need all the space available...
   
   // Set maximum allowed writes to maxAllowedWrites. 
   // More writes will only give errors when _EEPROMEX_DEBUG is set
@@ -1556,16 +1562,24 @@ void initializeEEPROM(){
   addressFloatVersion       = EEPROM.getAddress(sizeof(float));
 
   //initialize default values only when the current values are from a different version of the code (or they are being written for the first time!)
-  float storedVersion = EEPROM.readInt(addressFloatVersion);
+  float storedVersion       = EEPROM.readFloat(addressFloatVersion);
+  Serial.print("Version read from EEPROM: ");
+  Serial.println(storedVersion);
+  
   while(!EEPROM.isReady()){ delay(1); }
   if(SMARTCLOCK_VERSION != storedVersion){
-    EEPROM.writeInt(addressIntUTCOffset,     99); //dummy value so will be updated with approximated value based on longitude
+    Serial.print("The version read from the EEPROM is different from the current program version, current version is: ");
+    Serial.println(SMARTCLOCK_VERSION);
+    
+    EEPROM.updateInt(addressIntUTCOffset,     99); //dummy value so will be updated with approximated value based on longitude
     while (!EEPROM.isReady()) { delay(1); }
-    EEPROM.writeInt(addressIntLanguage,       0); //default to "english"
+    EEPROM.updateInt(addressIntLanguage,       0); //default to "english"
     while (!EEPROM.isReady()) { delay(1); }
-    EEPROM.writeInt(addressIntDateView,       0); //default to "string"
+    EEPROM.updateInt(addressIntDateView,       0); //default to "string"
     while (!EEPROM.isReady()) { delay(1); }
-    EEPROM.writeInt(addressIntSynchFrequency, 1); //default synch frequency to once every minute = MINUTEINMILLIS
+    EEPROM.updateInt(addressIntSynchFrequency, 1); //default synch frequency to once every minute = MINUTEINMILLIS
+    while (!EEPROM.isReady()) { delay(1); }
+    EEPROM.updateFloat(addressFloatVersion,    SMARTCLOCK_VERSION);
     while (!EEPROM.isReady()) { delay(1); }
   }
 }
