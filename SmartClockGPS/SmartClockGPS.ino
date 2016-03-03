@@ -20,8 +20,11 @@
  */
 
 #include <LiquidCrystal.h>
+#include <EEPROMex.h>
 #include "Timer.h"                     //https://github.com/JChristensen/Timer/tree/v2.1
 #include "SmartClock.h"
+
+#define SMARTCLOCK_VERSION  1.0f
 
 //module max inquire devices, can change to optimize HC-05 connectivity
 #define MAX_DEVICES         15
@@ -60,11 +63,12 @@ LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D0, LCD_D1, LCD_D2, LCD_D3, LCD_D4, LCD_D5
 
 //instantiate the timer object
 Timer t;
-int dynamicEvent;
-int tickEvent;                      // event that will be called once every second to create the local Arduino clock
-int firstSynch;                     // event that will be called once after 1 second to synch the local Arduino clock with GPS time data
-int synchEvent;                     // event that will be called once every so often to synch the local Arduino clock with GPS time data
-int chronometerEvent;               // event that will be called once every 50 milliseconds as a chronometer function
+
+/**
+ * EEPROM global variables
+ */
+const int maxAllowedWrites = 80;
+const int memBase          = 350;
 
 /*  Define Static String Constants
  *  Messages variables that don't change during program runtime
@@ -134,11 +138,13 @@ static const String dayOfWeek[5][7] = {{"Sun","Mon","Tue","Wed","Thu","Fri","Sat
 
 static const String settingsMenu[5] = {"SETTINGS","IMPOSTAZIONI","AJUSTES","PARAMETRES","EINSTELLUNGEN"};
 
-static const String settingsMenuItems[5][4] = {{"UTC OFFSET","LANGUAGE","DATE VIEW","SYNC FREQUENCY"},
-{"OFFSET UTC","LINGUA","VISTA DATA","FREQUENZA SYNC"},
-{"OFFSET UTC","IDIOMA","VISTA FECHA","FRECUENCIA SYNC"},
-{"OFFSET UTC","LANGUE","VUE DATE","FREQUENCE SYNC"},
-{"OFFSET UTC","SPRACHE","ANZEIGEN DATUM","FREQUENZ SYNC"}};
+static const String settingsMenuItems[5][5] = {
+  {"UTC OFFSET","LANGUAGE","DATE VIEW","SYNC FREQUENCY","VERSION"},     //english
+  {"OFFSET UTC","LINGUA","VISTA DATA","FREQUENZA SYNC","VERSIONE"},     //italiano
+  {"OFFSET UTC","IDIOMA","VISTA FECHA","FRECUENCIA SYNC", "VERSION"},   //espanol
+  {"OFFSET UTC","LANGUE","VUE DATE","FREQUENCE SYNC", "VERSION"},       //francais
+  {"OFFSET UTC","SPRACHE","ANZEIGEN DATUM","FREQUENZ SYNC", "VERSION"}  //deutch
+};
 
 static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
 
@@ -169,72 +175,6 @@ static const String GPSFIXSTATUS[2][2] = {
 };
 
 static const String GPSDataStrings[7] = {"STATUS","LAT","LNG","SPEED","TRACK","MagnVAR","SIGNAL"};
-String GPSValueStrings[7];
-
-/**********************************************************************
- * Define Program Level Global variables 
- * (not user changeable, only the program can change their value) 
- * held in RAM memory
- * ********************************************************************
-*/
-
-ProgramState OLDPROGRAMSTATE;
-ProgramState CURRENTPROGRAMSTATE;
-boolean PROGRAMSTATECHANGED;
-boolean SETTINGHC05MODE;
-boolean INITIALIZING;
-
-HC05MODE HC05_MODE;                   //can be AT_MODE or COMMUNICATION_MODE
-HC05CMODE currentCMODE;               //can be CONNECT_BOUND, CONNECT_ANY, or CONNECT_SLAVE_LOOP
-HC05STATE HC05_STATE;                 //can be CONNECTED or DISCONNECTED
-HC05STATE HC05_OLDSTATE;              //can be CONNECTED or DISCONNECTED
-CHRONOSTATE ChronoState;              //can be CHRONOINIT, CHRONORUNNING or CHRONOSTOPPED
-
-LOCALE currentLocale;                 //can be ENG, ITA, ESP, FRA, DEU
-BASEMENU BaseMenu;                    //can be CLOCK, CHRONOMETER, GPSDATA
-int CURRENTMENUITEM;                  //declaring as int rather than MENUITEM so that we can iterate over the items
-int PREVIOUSMENUITEM;                 //declaring as int rather than MENUITEM so that we can iterate over the items
-boolean MENUACTIVE;                   //whether user has entered into main menu
-int MENULEVEL;                        //current level within main menu
-int MENUITEMS;                        //item count in current menu level
-int initcount;                        //for iterating over initphase strings
-int searchcount;                      //for iterating over searchphase and and linkphase strings
-
-String devices[MAX_DEVICES];          //array of device addresses
-int deviceCount;                      //total device addresses found
-int currentDeviceIdx;                 //index of iteration through device addresses
-String currentDeviceAddr;             //address of device at current index
-String currentDeviceName;             //name of device at current index
-int recentDeviceCount;                //result of recent paired devices count request
-int currentFunctionStep;              //SetHC05Mode function has different steps
-String incoming;                      //for reading incoming Serial data (from HC-05 module to Serial monitor)
-String outgoing;                      //outgoing Serial data (from user / Serial monitor to HC-05 module)
-String GPSCommandString;              //the string that will hold the incoming GPS data stream (one line at a time)
-int currentYear;                      //used for creating clock date-time
-int currentMonth;                     //used for creating clock date-time
-int currentDay;                       //used for creating clock date-time
-int currentHour;                      //used for creating clock date-time
-int currentMinute;                    //used for creating clock date-time
-int currentSecond;                    //used for creating clock date-time
-String timeString;                    //final string of the time to display on the LCD
-String dateString;                    //final string of the data to display on the LCD
-int GPSDataCounter;                   //GPS DATA
-
-unsigned long currentMillis;          //will count the current milliseconds of the Arduino when the chronometer function is activated
-unsigned long oldtime;                //useful for filtering button press
-unsigned long newtime;                //useful for filtering button press
-int MENUBUTTONSTATE;                  //button state LOW / HIGH
-int NAVIGATEBUTTONSTATE;              //button state LOW / HIGH
-boolean MENUBUTTONPRESSED;            //button press event
-boolean NAVIGATEBUTTONPRESSED;        //button press event
-
-/****************************************
- * Define User Preference globals (held in RAM memory)
- * TODO: should be stored in EEPROM!
- ****************************************
- */
-int offsetUTC;
-boolean useLangStrings;
 
 
 void setup() {
@@ -265,12 +205,32 @@ void setup() {
   lcd.setCursor(0,1);
   lcd.print("*hell of a time*");
 
+  initializeEEPROM();
+  
+  initializeAllVariables();
+
   tickEvent         = t.every(1000,           updateClock, (void*)0);
-  synchEvent        = t.every(MINUTEINMILLIS,   synchTime, (void*)0);   // DEFAULT TO EVERY MINUTE...
   chronometerEvent  = t.every(50,             chronometer, (void*)0);
 
-  initializeAllVariables();
-  
+  int synchPreference = EEPROM.readInt(addressIntSynchFrequency);
+  switch(synchPreference){
+    case 0:
+      synchEvent  = t.every(SECONDINMILLIS, synchTime, (void*)0);   
+      break;
+    case 1:
+      synchEvent  = t.every(MINUTEINMILLIS, synchTime, (void*)0);   
+      break;
+    case 2:
+      synchEvent  = t.every(HOURINMILLIS,   synchTime, (void*)0);   
+      break;
+    case 3:
+      synchEvent  = t.every(DAYINMILLIS,    synchTime, (void*)0);   
+      break;
+    case 4:
+      synchEvent  = t.every(WEEKINMILLIS,   synchTime, (void*)0);   
+      break;
+  }    
+
   //LET'S GET THIS PARTY STARTED!
   //Set_HC05_MODE function uses HC05_MODE global instead of sending the mode in as a parameter,
   //because this function is called in multiple steps by the timer object, as a callback,
@@ -729,6 +689,8 @@ boolean elaborateGPSValues(String myString){
     }
     Serial.print("Approximate UTC time zone offset is: ");
     Serial.println(offsetUTC);
+    EEPROM.writeInt(addressIntUTCOffset, offsetUTC);
+    while(!EEPROM.isReady()){ delay(1); }
   }
 /*
   for(q=0;q<13;q++){
@@ -1137,7 +1099,7 @@ void printMenu(){
       lcd.setCursor(0,0);  
       lcd.print(settingsMenu[currentLocale]);
 
-      MENUITEMS = 4;
+      MENUITEMS = 5;
       lcd.setCursor(0,1);
       lcd.print(">> "+settingsMenuItems[currentLocale][CURRENTMENUITEM]);      
     }  
@@ -1165,6 +1127,11 @@ void printMenu(){
         MENUITEMS = 5;
         lcd.setCursor(0,1);
         lcd.print(frequencyValues[currentLocale][CURRENTMENUITEM]);
+      }
+      else if(PREVIOUSMENUITEM == VERSIONMENUITEM){
+        MENUITEMS = 1;
+        lcd.setCursor(0,1);
+        lcd.print(SMARTCLOCK_VERSION);
       }
       
     }
@@ -1197,24 +1164,30 @@ void saveSettings(){
         Serial.print("offsetUTC now has value <");
         Serial.print(offsetUTC);
         Serial.println(">");
-        synchTime((void*)0);
       }
       else if(utcOffsetValues[CURRENTMENUITEM] == "0"){
         offsetUTC = utcOffsetValues[CURRENTMENUITEM].toInt();
         Serial.print("offsetUTC now has value <");
         Serial.print(offsetUTC);
         Serial.println(">");
-        synchTime((void*)0);
       }
-    }
+      synchTime((void*)0);
+      EEPROM.writeInt(addressIntUTCOffset, CURRENTMENUITEM);
+      while(!EEPROM.isReady()){ delay(1); }
+   }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
       currentLocale = (LOCALE)CURRENTMENUITEM;
+      EEPROM.writeInt(addressIntLanguage, CURRENTMENUITEM);
+      while(!EEPROM.isReady()){ delay(1); }
     }
     else if(PREVIOUSMENUITEM == DATEVIEWMENUITEM){
       useLangStrings = CURRENTMENUITEM==0?true:false;
+      EEPROM.writeInt(addressIntDateView, CURRENTMENUITEM);
+      while(!EEPROM.isReady()){ delay(1); }      
     }
     else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
       t.stop(synchEvent);
+      EEPROM.writeInt(addressIntSynchFrequency, CURRENTMENUITEM);
       switch(CURRENTMENUITEM){
         case 0:
           synchEvent  = t.every(SECONDINMILLIS, synchTime, (void*)0);   
@@ -1232,6 +1205,9 @@ void saveSettings(){
           synchEvent  = t.every(WEEKINMILLIS,   synchTime, (void*)0);   
           break;
       }
+    }
+    else if(PREVIOUSMENUITEM == VERSIONMENUITEM){
+      //DON'T DO ANYTHING, NOTHING TO SAVE!
     }
 }
 
@@ -1464,8 +1440,14 @@ void flushOkString(){
 }
 
 void initializeAllVariables(){  
-  currentLocale = ENG; //supported locales are ENG, ITA, ESP, FRA, DEU
-  offsetUTC = 99; //initial out of bounds value, kind of like an uninitialized null value
+  //currentLocale = ENG; //supported locales are ENG, ITA, ESP, FRA, DEU
+  currentLocale = static_cast<LOCALE>(EEPROM.readInt(addressIntLanguage));
+  while(!EEPROM.isReady()){ delay(1); }
+  offsetUTC = EEPROM.readInt(addressIntUTCOffset); //initial out of bounds value, kind of like an uninitialized null value
+  while(!EEPROM.isReady()){ delay(1); }
+  useLangStrings = (EEPROM.readInt(addressIntDateView) == 0 ? true : false);
+  while(!EEPROM.isReady()){ delay(1); }
+
 
   MENUBUTTONSTATE = LOW;
   NAVIGATEBUTTONSTATE = LOW;
@@ -1484,8 +1466,6 @@ void initializeAllVariables(){
   currentHour = 0;
   currentMinute = 0;
   currentSecond = 0;
-
-  useLangStrings = true;
 
   initcount = 0;
   searchcount = 0;
@@ -1558,6 +1538,38 @@ String MapValue(String needle,const String haystack[][2],int len){
   }
   return "";
 }
+
+void initializeEEPROM(){
+  // start reading from position memBase (address 0) of the EEPROM. Set maximumSize to EEPROMSizeUno 
+  // Writes before membase or beyond EEPROMSizeUno will only give errors when _EEPROMEX_DEBUG is set
+  EEPROM.setMemPool(memBase, EEPROMSizeUno);
+  
+  // Set maximum allowed writes to maxAllowedWrites. 
+  // More writes will only give errors when _EEPROMEX_DEBUG is set
+  EEPROM.setMaxAllowedWrites(maxAllowedWrites);
+  delay(100);
+
+  addressIntUTCOffset       = EEPROM.getAddress(sizeof(int));
+  addressIntLanguage        = EEPROM.getAddress(sizeof(int));
+  addressIntDateView        = EEPROM.getAddress(sizeof(int));
+  addressIntSynchFrequency  = EEPROM.getAddress(sizeof(int));
+  addressFloatVersion       = EEPROM.getAddress(sizeof(float));
+
+  //initialize default values only when the current values are from a different version of the code (or they are being written for the first time!)
+  float storedVersion = EEPROM.readInt(addressFloatVersion);
+  while(!EEPROM.isReady()){ delay(1); }
+  if(SMARTCLOCK_VERSION != storedVersion){
+    EEPROM.writeInt(addressIntUTCOffset,     99); //dummy value so will be updated with approximated value based on longitude
+    while (!EEPROM.isReady()) { delay(1); }
+    EEPROM.writeInt(addressIntLanguage,       0); //default to "english"
+    while (!EEPROM.isReady()) { delay(1); }
+    EEPROM.writeInt(addressIntDateView,       0); //default to "string"
+    while (!EEPROM.isReady()) { delay(1); }
+    EEPROM.writeInt(addressIntSynchFrequency, 1); //default synch frequency to once every minute = MINUTEINMILLIS
+    while (!EEPROM.isReady()) { delay(1); }
+  }
+}
+
 /*
  *  Copyright (c) 2016 John Romano D'Orazio (john.dorazio@cappellaniauniroma3.org)
  *  and Vincenzo d'Orso (icci87@gmail.com)
