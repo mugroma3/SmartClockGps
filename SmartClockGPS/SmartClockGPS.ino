@@ -147,7 +147,7 @@ static const String settingsMenuItems[5][MainMenuItems] = {
   {"OFFSET UTC",  "SPRACHE",  "ANZEIGEN DATUM", "FREQUENZ SYNC",    "VERSION"}  //deutch
 };
 
-static const String chronometer[5] = {"CHRONOMETER","CRONOMETRO","CRONOMETRO","CHRONOMETRE","CHRONOMETER"};
+static const String chronometer_lcl[5] = {"CHRONOMETER","CRONOMETRO","CRONOMETRO","CHRONOMETRE","CHRONOMETER"};
 
 static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
 
@@ -1050,7 +1050,7 @@ void checkButtonsPressed(){
         else{
           BaseMenu = CHRONOMETER;
           lcd.setCursor(0,0);
-          lcd.print(" " + chronometer[currentLocale] + " >");
+          lcd.print(" " + chronometer_lcl[currentLocale] + " >");
           lcd.setCursor(0,1);
           lcd.print("00:00:00.000");
         }
