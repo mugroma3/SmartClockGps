@@ -38,8 +38,8 @@
 
 //pin definitions
 #define LED_PIN             0
-#define LCD_RS              16 //Register Select
-#define LCD_EN              17 //Enable
+#define LCD_RS              22 //Register Select
+#define LCD_EN              23 //Enable
 #define LCD_D0              24
 #define LCD_D1              25
 #define LCD_D2              26
