@@ -19,6 +19,10 @@
  * 
  */
 
+#include <DS3232RTC.h>        //http://github.com/JChristensen/DS3232RTC
+#include <Streaming.h>        //http://arduiniana.org/libraries/streaming/
+#include <Time.h>             //http://playground.arduino.cc/Code/Time
+#include <Wire.h>             //http://arduino.cc/en/Reference/Wire
 #include <LiquidCrystal.h>
 #include <EEPROMex.h>
 #include "Timer.h"                     //https://github.com/JChristensen/Timer/tree/v2.1
@@ -53,6 +57,13 @@
 #define HC05_STATE_PIN      12  
 #define HC05_KEY_PIN        13  
 #define HC05_EN_PIN         14  
+
+//declare Time / RTC variables
+static time_t tLast;
+time_t tt;
+tmElements_t tm;
+float c; //celsius temperature
+float f; //fahrenheit temperature
 
 //initialize the display library with the numbers of the interface pins
 //LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
@@ -212,6 +223,14 @@ void setup() {
   
   initializeAllVariables();
 
+  //setSyncProvider() causes the Time library to synchronize with the
+  //external RTC by calling RTC.get() every five minutes by default.
+  setSyncProvider(RTC.get);
+  Serial << F("RTC Sync");
+  if (timeStatus() != timeSet) Serial << F(" FAIL!");
+  Serial << endl;
+
+
   tickEvent         = t.every(1000,           updateClock, (void*)0);
   chronometerEvent  = t.every(50,             chronometer, (void*)0);
 
@@ -238,7 +257,7 @@ void setup() {
   //Set_HC05_MODE function uses HC05_MODE global instead of sending the mode in as a parameter,
   //because this function is called in multiple steps by the timer object, as a callback,
   //making it complicated to handle parameters...
-  Set_HC05_MODE((void*)0); 
+  //Set_HC05_MODE((void*)0); 
 
 }
 
@@ -253,6 +272,26 @@ void loop() {
   //digitalWrite(LED_PIN, (int)HC05_STATE);
   digitalWrite(LED_PIN, digitalRead(HC05_STATE_PIN));
   
+  tt = now();
+  if (tt != tLast) {
+      tLast = tt;
+      //printDateTime(tt);
+      currentHour   = hour(tt);
+      currentMinute = minute(tt);
+      currentSecond = second(tt);
+  
+      currentDay    = day(tt);
+      currentMonth  = month(tt);
+      currentYear   = year(tt);
+
+      if (second(tt) == 0) {
+          c = RTC.temperature() / 4.;
+          f = c * 9. / 5. + 32.;
+          Serial << F("  ") << c << F(" C  ") << f << F(" F");
+      }
+      Serial << endl;
+  }
+
   //Listen for changes in program state, useful for one time operations within the loop
   if(OLDPROGRAMSTATE != CURRENTPROGRAMSTATE){
     PROGRAMSTATECHANGED = true;
@@ -675,11 +714,11 @@ boolean elaborateGPSValues(String myString){
   valueArray[12]  = myString.substring(myString.indexOf('*')+1);                //CHECKSUM
   
   GPSValueStrings[0] = MapValue(valueArray[1],GPSFIXSTATUS,2);
-  GPSValueStrings[1] = (String)valueArray[2].substring(0,2).toInt() + "'" + valueArray[2].substring(2) + "\" " + valueArray[3];
+  GPSValueStrings[1] = (String)valueArray[2].substring(0,2).toInt() + "'" + valueArray[2].substring(2) + "\"" + valueArray[3];
   GPSValueStrings[2] = (String)valueArray[4].substring(0,3).toInt() + "'" + valueArray[2].substring(3) + "\"" + valueArray[5];
   GPSValueStrings[3] = valueArray[6];
-  GPSValueStrings[4] = valueArray[7] + "°";
-  GPSValueStrings[5] = valueArray[9] + "° " + valueArray[10];
+  GPSValueStrings[4] = valueArray[7] + (char)223;
+  GPSValueStrings[5] = valueArray[9] + (char)223 + valueArray[10];
   GPSValueStrings[6] = MapValue(valueArray[11],SIGNALINTEGRITY,5);
 
   int approxOffsetUTC = floor((valueArray[4].substring(0,3).toInt() + 7.5) / 15);
@@ -1487,7 +1526,8 @@ void initializeAllVariables(){
   
   SETTINGHC05MODE = false;
   INITIALIZING = false;
-  CURRENTPROGRAMSTATE = INITIALSTATECHECK;
+  //CURRENTPROGRAMSTATE = INITIALSTATECHECK;
+  CURRENTPROGRAMSTATE = LISTENNMEA;
 
   //Start the HC-05 module in communication mode
   HC05_MODE = COMMUNICATION_MODE;  
@@ -1495,6 +1535,7 @@ void initializeAllVariables(){
 
   ChronoState = CHRONOINIT;
   GPSDataCounter = 0;
+  lcd.clear();
 }
 
 void resetAllVariables(){
