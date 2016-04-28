@@ -7,28 +7,30 @@
  *                A 16x2 LCD Display Module is used to display the date and time.
  * Board:         Atmega 1284P on a breadboard using bootloader "maniacbug Mighty 1284P 16MHZ using Optiboot"
  * Bootloader:    https://github.com/JChristensen/mighty-1284p/tree/v1.6.3 (for usage with Arduino 1.6.3 and higher)
- * Authors:       Vincenzo d'Orso (icci87@gmail.com) and John D'Orazio (john.dorazio@cappellaniauniroma3.org)
+ * Authors:       John D'Orazio (john.dorazio@cappellaniauniroma3.org) and Vincenzo d'Orso (icci87@gmail.com)
  * License:       GPLv3 (see full license at bottom of this file)
- * Last Modified: 23 January 2016
+ * Last Modified: 28 April 2016
  * 
  * A project of the Microcontrollers Users Group - Roma Tre University
  * MUG UniRoma3 http://muglab.uniroma3.it/
  * 
  * Dependencies:  -> Timer library by JChristensen https://github.com/JChristensen/Timer/tree/v2.1
- *                -> EEPROMex library
- * 
+ *                -> EEPROMex library https://github.com/thijse/Arduino-EEPROMEx
+ *                -> DS3232RTC library by JChristensen http://github.com/JChristensen/DS3232RTC 
+ *                --> (requires also Streaming library http://arduiniana.org/libraries/streaming/ 
+ *                -->  and Time library http://playground.arduino.cc/Code/Time )
  */
 
 #include <DS3232RTC.h>        //http://github.com/JChristensen/DS3232RTC
 #include <Streaming.h>        //http://arduiniana.org/libraries/streaming/
 #include <Time.h>             //http://playground.arduino.cc/Code/Time
-#include <Wire.h>             //http://arduino.cc/en/Reference/Wire
+//#include <Wire.h>             //http://arduino.cc/en/Reference/Wire
 #include <LiquidCrystal.h>
-#include <EEPROMex.h>
-#include "Timer.h"                     //https://github.com/JChristensen/Timer/tree/v2.1
+#include <EEPROMex.h>         //https://github.com/thijse/Arduino-EEPROMEx
+#include "Timer.h"            //https://github.com/JChristensen/Timer/tree/v2.1
 #include "SmartClock.h"
 
-#define SMARTCLOCK_VERSION  1.0f
+#define SMARTCLOCK_VERSION  2.0f
 
 //module max inquire devices, can change to optimize HC-05 connectivity
 #define MAX_DEVICES         15
@@ -151,14 +153,16 @@ static const String settingsMenu[5] = {"SETTINGS","IMPOSTAZIONI","AJUSTES","PARA
 
 static const int MainMenuItems = 5;
 static const String settingsMenuItems[5][MainMenuItems] = {
-  {"UTC OFFSET",  "LANGUAGE", "DATE VIEW",      "SYNC FREQUENCY",   "VERSION"}, //english
-  {"OFFSET UTC",  "LINGUA",   "VISTA DATA",     "FREQUENZA SYNC",   "VERSIONE"},//italiano
-  {"OFFSET UTC",  "IDIOMA",   "VISTA FECHA",    "FRECUENCIA SYNC",  "VERSION"}, //espanol
-  {"OFFSET UTC",  "LANGUE",   "VUE DATE",       "FREQUENCE SYNC",   "VERSION"}, //francais
-  {"OFFSET UTC",  "SPRACHE",  "ANZEIGEN DATUM", "FREQUENZ SYNC",    "VERSION"}  //deutch
+  {"INITIALIZE",      "UTC OFFSET",  "LANGUAGE", "DATE VIEW",      "VERSION"}, //english
+  {"INIZIALIZZA",     "OFFSET UTC",  "LINGUA",   "VISTA DATA",     "VERSIONE"},//italiano
+  {"INICIALIZAR",     "OFFSET UTC",  "IDIOMA",   "VISTA FECHA",    "VERSION"}, //espanol
+  {"INITIALISER",     "OFFSET UTC",  "LANGUE",   "VUE DATE",       "VERSION"}, //francais
+  {"INITIALISIEREN",  "OFFSET UTC",  "SPRACHE",  "ANZEIGEN DATUM", "VERSION"}  //deutch
 };
 
 static const String chronometer_lcl[5] = {"CHRONOMETER","CRONOMETRO","CRONOMETRO","CHRONOMETRE","CHRONOMETER"};
+
+static const String initializeValues[5][2] = {{"BT GPS MODULE","MANUALLY"},{"MODULO BT GPS","MANUALMENTE"},{"MODULO BT GPS","A MANO"},{"MODULE BT GPS","MANUELLEMENT"},{"BT GPS MODUL","MANUELL"}};
 
 static const String utcOffsetValues[27] = {"-12","-11","-10","-9","-8","-7","-6","-5","-4","-3","-2","-1","0","+1","+2","+3","+4","+5","+6","+7","+8","+9","+10","+11","+12","+13","+14"};
 
@@ -170,11 +174,6 @@ static const String dateViewValues[5][2] = {{"String","Number"},
 {"Chaine","Nombre"},
 {"String","Zahl"}};
 
-static const String frequencyValues[5][5] = {{"once a second","once a minute","once every hour","once a day","once a week"},
-{"ogni secondo","ogni minuto","ogni ora","ogni giorno","ogni settimana"},
-{"cada segundo","cada minuto","cada hora","cada dia","cada semana"},
-{"chaque seconde","chaque minute","chaque heur","chaque jour","chaque semaine"},
-{"jede sekunde","jede minute","jede stunde","jede tag","jede woche"}};
 
 static const String SIGNALINTEGRITY[5][2] = {
   {"A", "autonomous"},
@@ -189,6 +188,11 @@ static const String GPSFIXSTATUS[2][2] = {
 };
 
 static const String GPSDataStrings[7] = {"STATUS","LAT","LNG","SPEED","TRACK","MagnVAR","SIGNAL"};
+
+
+
+
+
 
 
 void setup() {
@@ -234,7 +238,7 @@ void setup() {
   tickEvent         = t.every(1000,           updateClock, (void*)0);
   chronometerEvent  = t.every(50,             chronometer, (void*)0);
 
-  int synchPreference = EEPROM.readInt(addressIntSynchFrequency);
+  int synchPreference = EEPROM.readInt(addressIntSynchFrequency); //TODO: VERIFY IF THIS IS AT ALL USEFUL NOW THAT WE HAVE RTC MODULE
   switch(synchPreference){
     case 0:
       synchEvent  = t.every(SECONDINMILLIS, synchTime, (void*)0);   
@@ -895,7 +899,7 @@ void updateClock(void* context)
   if(CURRENTPROGRAMSTATE == LISTENNMEA){
     if(BaseMenu == CLOCK && MENUACTIVE==false){
       lcd.setCursor(0,0);
-      lcd.print(timeString);
+      lcd.print(timeString + " " + (String)c + (char)223 + "C");
       lcd.setCursor(0,1);
       lcd.print(dateString);
     }
@@ -1063,11 +1067,13 @@ void checkButtonsPressed(){
         MENUBUTTONPRESSED = false;
         if(MENUACTIVE == false){
           MENUACTIVE = true; //will stay true until a final menu selection has taken place
+          MENULEVEL = 0;
+          CURRENTMENUITEM = INITIALIZEMENUITEM;          
         }
         else if(MENUACTIVE == true){
           if(MENULEVEL == 0){
             PREVIOUSMENUITEM = CURRENTMENUITEM;
-            CURRENTMENUITEM = UTCOFFSETMENUITEM;
+            CURRENTMENUITEM = INITIALIZEMENUITEM;
             MENULEVEL++;
           }
           else{
@@ -1083,7 +1089,7 @@ void checkButtonsPressed(){
         if(MENUACTIVE){
           CURRENTMENUITEM++;
           if((int)CURRENTMENUITEM >= MENUITEMS){
-            CURRENTMENUITEM = UTCOFFSETMENUITEM;
+            CURRENTMENUITEM = INITIALIZEMENUITEM;
           }
         }
         else{
@@ -1150,7 +1156,12 @@ void printMenu(){
       lcd.print(""+settingsMenuItems[currentLocale][PREVIOUSMENUITEM]);
       
       //determine number of menu items
-      if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
+      if(PREVIOUSMENUITEM == INITIALIZEMENUITEM){
+        MENUITEMS = 2;
+        lcd.setCursor(0,1);
+        lcd.print(initializeValues[currentLocale][CURRENTMENUITEM]);
+      }
+      else if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
         MENUITEMS = 27;
         lcd.setCursor(0,1);
         lcd.print("UTC "+utcOffsetValues[CURRENTMENUITEM]);
@@ -1165,11 +1176,13 @@ void printMenu(){
         lcd.setCursor(0,1);
         lcd.print(dateViewValues[currentLocale][CURRENTMENUITEM]);
       }
+      /*
       else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
         MENUITEMS = 5;
         lcd.setCursor(0,1);
         lcd.print(frequencyValues[currentLocale][CURRENTMENUITEM]);
       }
+      */
       else if(PREVIOUSMENUITEM == VERSIONMENUITEM){
         MENUITEMS = 1;
         lcd.setCursor(0,1);
@@ -1190,7 +1203,16 @@ void printMenu(){
  */
 
 void saveSettings(){
-    if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
+    if(PREVIOUSMENUITEM == INITIALIZEMENUITEM){
+      if(CURRENTMENUITEM == 0){
+        CURRENTPROGRAMSTATE = INITIALSTATECHECK;
+        Set_HC05_MODE((void*)0);         
+      }
+      else if(CURRENTMENUITEM == 1){
+       //FLASH THE HOUR, NEXT BUTTON WILL MANUALLY ADVANCE 1 AND MENU/SEL BUTTON WILL SAVE AND MOVE TO MINUTES... 
+      }
+    }
+    else if(PREVIOUSMENUITEM == UTCOFFSETMENUITEM){
       //Serial.println("Saving UTC OFFSET... current selected value = "+utcOffsetValues[CURRENTMENUITEM]);
       if(utcOffsetValues[CURRENTMENUITEM].startsWith("+") || utcOffsetValues[CURRENTMENUITEM].startsWith("-")){
         String signVal = utcOffsetValues[CURRENTMENUITEM].substring(0,1);
@@ -1216,7 +1238,7 @@ void saveSettings(){
       synchTime((void*)0);
       EEPROM.updateInt(addressIntUTCOffset, CURRENTMENUITEM);
       while(!EEPROM.isReady()){ delay(1); }
-   }
+    }
     else if(PREVIOUSMENUITEM == LANGUAGEMENUITEM){
       currentLocale = (LOCALE)CURRENTMENUITEM;
       EEPROM.updateInt(addressIntLanguage, CURRENTMENUITEM);
@@ -1227,6 +1249,7 @@ void saveSettings(){
       EEPROM.updateInt(addressIntDateView, CURRENTMENUITEM);
       while(!EEPROM.isReady()){ delay(1); }      
     }
+    /*
     else if(PREVIOUSMENUITEM == SYNCHFREQUENCYMENUITEM){
       t.stop(synchEvent);
       EEPROM.updateInt(addressIntSynchFrequency, CURRENTMENUITEM);
@@ -1248,6 +1271,7 @@ void saveSettings(){
           break;
       }
     }
+    */
     else if(PREVIOUSMENUITEM == VERSIONMENUITEM){
       //DON'T DO ANYTHING, NOTHING TO SAVE!
     }
@@ -1263,8 +1287,6 @@ void saveSettings(){
  * *************************
  * 
  */
-
-
 void resetAndExitMenu(){
     PREVIOUSMENUITEM = UTCOFFSETMENUITEM;
     CURRENTMENUITEM = UTCOFFSETMENUITEM;
@@ -1272,6 +1294,10 @@ void resetAndExitMenu(){
     MENUITEMS = 0;
     MENUACTIVE = false;
 }
+
+
+
+
 
 void Set_HC05_MODE(void* context){
   Serial.print(F("[currentFunctionStep = "));
